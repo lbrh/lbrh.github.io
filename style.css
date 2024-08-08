@@ -1,0 +1,103 @@
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #2c3e50, #4ca1af);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.card {
+    background: white;
+    width: 100%;
+    max-width: 350px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    transition: transform 0.3s;
+    margin: 20px 0;
+}
+
+.card:hover {
+    transform: scale(1.05);
+}
+
+.header {
+    background: #4ca1af;
+    color: white;
+    text-align: center;
+    padding: 15px;
+
+}
+
+.profile-png {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+}
+
+.name {
+    margin: 0;
+    font-size: 1.2em;
+}
+
+.title {
+    margin: 5px 0 0;
+    font-size: 0.9em;
+}
+
+.content {
+    padding: 15px;
+}
+
+.content h1 {
+    text-align: center;
+    margin-top: 0;
+    font-size: 1em;
+}
+
+.experience-list,
+.links-list {
+    list-style: none;
+    padding: 0;
+}
+
+.experience-list li,
+.links-list li {
+    margin: 10px 0;
+    font-size: 0.9em;
+}
+
+.links-list a {
+    color: #4ca1af;
+    text-decoration: none;
+}
+
+.links-list a:hover {
+    text-decoration: underline;
+}
+
+.footer {
+    background: #f1f1f1;
+    text-align: center;
+    padding: 10px;
+    font-size: 0.8em;
+    color: #7f8c8d;
+}
+
+@media (max-height: 600px) {
+    .card {
+        margin: 10px 0;
+    }
+
+    .header,
+    .content,
+    .footer {
+        padding: 10px;
+    }
+}
