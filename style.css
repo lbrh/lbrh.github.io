@@ -73,7 +73,8 @@ body {
     font-size: 0.9em;
 }
 
-.links-list a {
+.links-list a,
+.experience-list a{
     color: #4ca1af;
     text-decoration: none;
 }
