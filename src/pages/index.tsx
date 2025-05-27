@@ -1,24 +1,12 @@
-import Image from 'next/image';
 import ExperienceCard from '../components/ExperienceCard';
 import SkillIcon from '../components/SkillIcon';
 import SectionHeader from '../components/SectionHeader';
+import Header from '../components/Header';
 
 export default function Home() {
   return (
-    <div className="font-sans text-gray-800 bg-gray-50">
-      <header className="bg-blue-600 text-white py-10 px-5 text-center">
-        <div className="w-48 h-48 mx-auto mb-4 relative">
-          <Image 
-            src="lbrh.github.io/pfp.jpeg" 
-            alt="Profile Picture" 
-            width={200}
-            height={200}
-            className="rounded-full object-cover border-2 border-blue-600 shadow-md hover:scale-110 transition-transform duration-300"
-          />
-        </div>
-        <h1 className="text-4xl font-bold m-0">Liam Robinson Hounsell</h1>
-        <p className="text-xl mt-2.5">👋 Hi there! I&apos;m Liam, a passionate and driven Software Engineering student from Melbourne, Australia.</p>
-      </header>
+    <div className="font-sans text-gray-800">
+      <Header />
       <main className="p-5 max-w-7xl mx-auto">
         <section className="mb-10">
           <SectionHeader title="About Me" />
@@ -62,7 +50,6 @@ export default function Home() {
             <SkillIcon src="lbrh.github.io/node.png" alt="Node.js" name="Node.js" />
           </div>
         </section>
-        
         <section className="mb-10">
           <SectionHeader title="What I&apos;m Working On" />
           <ul className="list-disc pl-5">
