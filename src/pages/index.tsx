@@ -43,11 +43,11 @@ export default function Home() {
           <SectionHeader title="Skills" />
           <div className="flex flex-wrap justify-center gap-5">
             <SkillIcon src="htmlcss.png" alt="HTML/CSS" name="HTML/CSS" />
-            <SkillIcon src="../../public/java.png" alt="Java" name="Java" />
-            <SkillIcon src="../../public/cpp.png" alt="C++" name="C++" />
-            <SkillIcon src="../../public/js.png" alt="JavaScript" name="JavaScript" />
-            <SkillIcon src="../../public/python.png" alt="Python" name="Python" />
-            <SkillIcon src="../../public/node.png" alt="Node.js" name="Node.js" />
+            <SkillIcon src="java.png" alt="Java" name="Java" />
+            <SkillIcon src="cpp.png" alt="C++" name="C++" />
+            <SkillIcon src="js.png" alt="JavaScript" name="JavaScript" />
+            <SkillIcon src="python.png" alt="Python" name="Python" />
+            <SkillIcon src="node.png" alt="Node.js" name="Node.js" />
           </div>
         </section>
         <section className="mb-10">
