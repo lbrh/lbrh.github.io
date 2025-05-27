@@ -42,12 +42,12 @@ export default function Home() {
         <section className="mb-10">
           <SectionHeader title="Skills" />
           <div className="flex flex-wrap justify-center gap-5">
-            <SkillIcon src="lbrh.github.io/htmlcss.png" alt="HTML/CSS" name="HTML/CSS" />
-            <SkillIcon src="lbrh.github.io/java.png" alt="Java" name="Java" />
-            <SkillIcon src="lbrh.github.io/cpp.png" alt="C++" name="C++" />
-            <SkillIcon src="lbrh.github.io/js.png" alt="JavaScript" name="JavaScript" />
-            <SkillIcon src="lbrh.github.io/python.png" alt="Python" name="Python" />
-            <SkillIcon src="lbrh.github.io/node.png" alt="Node.js" name="Node.js" />
+            <SkillIcon src="lbrh.github.io/public/htmlcss.png" alt="HTML/CSS" name="HTML/CSS" />
+            <SkillIcon src="lbrh.github.io/public/java.png" alt="Java" name="Java" />
+            <SkillIcon src="lbrh.github.io/public/cpp.png" alt="C++" name="C++" />
+            <SkillIcon src="lbrh.github.io/public/js.png" alt="JavaScript" name="JavaScript" />
+            <SkillIcon src="lbrh.github.io/public/python.png" alt="Python" name="Python" />
+            <SkillIcon src="lbrh.github.io/public/node.png" alt="Node.js" name="Node.js" />
           </div>
         </section>
         <section className="mb-10">

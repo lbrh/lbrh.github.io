@@ -5,7 +5,7 @@ export default function Header() {
     <header className="bg-blue-600 text-red-50 py-10 px-5 text-center">
       <div className="w-48 h-48 mx-auto text-red-50 mb-4 relative">
         <Image 
-          src="lbrh.github.io/pfp.jpeg" 
+          src="lbrh.github.io/public/pfp.jpeg" 
           alt="Profile Picture" 
           width={200}
           height={200}
