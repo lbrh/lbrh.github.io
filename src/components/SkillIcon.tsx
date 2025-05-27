@@ -9,7 +9,7 @@ interface SkillIconProps {
 export default function SkillIcon({ src, alt, name }: SkillIconProps) {
   return (
     <div className="text-center">
-      <div className="h-16 w-16 mx-auto mb-2.5 relative">
+      <div className="h-20 w-20 mx-auto mb-2.5 relative">
         <Image 
           src={src} 
           alt={alt} 
