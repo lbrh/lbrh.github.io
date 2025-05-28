@@ -3,7 +3,7 @@ import Image from 'next/image';
 export default function Header() {
     return (
         <header className="bg-[url('/bg.jpeg')] bg-cover bg-center bg-fixed h-svh py-10 px-5 text-center">
-            <div className="grid grid-rows-2 h-full">
+            <div className="grid grid-rows-2 gap-5 h-svh">
                 <div className="relative">
                     <Image
                         src="/pfp.jpeg"
