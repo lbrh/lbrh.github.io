@@ -7,10 +7,12 @@ This is my personal website built with Next.js and deployed using GitHub Pages!!
 This website is automatically deployed to GitHub Pages using GitHub Actions. The deployment process is configured in `.github/workflows/nextjs.yml` and follows these steps:
 
 1. **Trigger**: The workflow runs on:
+
    - Push to the `main` branch
    - Manual trigger from the Actions tab
 
 2. **Build Process**:
+
    - Uses Node.js 20
    - Detects package manager (npm/yarn)
    - Installs dependencies
@@ -50,7 +52,7 @@ npm start
 ## Technologies Used
 
 - Next.js
-- React 
+- React
 - TypeScript
 - TailwindCSS
 - ESLint
