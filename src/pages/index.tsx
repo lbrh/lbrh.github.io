@@ -1,6 +1,6 @@
 import ComputerHeader from "../components/ComputerHeader";
 import Image from "next/image";
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import AboutMe from "../components/AboutMe";
 import SoftSkills from "../components/SoftSkills";
 import HardSkills from "../components/HardSkills";
@@ -9,9 +9,12 @@ import Contact from "../components/Contact";
 import Card from "../components/Card";
 import Experience from "../components/Experience";
 import MobileHeader from "../components/MobileHeader";
+import Head from 'next/head'
+import { motion } from "motion/react";
 
 export default function Home() {
     const [isMobile, setIsMobile] = useState(false);
+    const constraintsRef = useRef(null);
 
     useEffect(() => {
         const handleResize = () => {
@@ -24,7 +27,12 @@ export default function Home() {
     }, []);
 
     return (
-        <div className="bg-[#99c7d0]">
+        <>
+            <Head>
+                <title>Liam Robinson Hounsell | SWE </title>
+            </Head>
+            <motion.ul animate={{ rotate: 360 }} />
+        <motion.div className="bg-[#99c7d0]">
             {isMobile ? (
                 <div>
                     <MobileHeader/>
@@ -40,8 +48,12 @@ export default function Home() {
 
             ) : (
                 <div>
-                    <div><ComputerHeader/>
-                        <div className="grid grid-cols-2 p-5 max-w-screen-2xl mx-auto gap-5">
+
+                        <ComputerHeader/>
+                        <div ref={constraintsRef} className="grid grid-cols-2 p-5 max-w-screen-2xl mx-auto gap-5">
+                            <motion.div drag dragConstraints={constraintsRef} dragElastic={0} className="bg-amber-50">
+                                <p>weeeeeeeeeee</p>
+                            </motion.div>
                             <AboutMe/>
                             <Card>
                                 <Image
@@ -85,7 +97,6 @@ export default function Home() {
                                 />
                             </Card>
                         </div>
-                    </div>
                 </div>
             )}
 
@@ -93,6 +104,7 @@ export default function Home() {
                 <p>Hope you enjoyed my website!</p>
             </footer>
 
-        </div>
+        </motion.div>
+        </>
     );
 }
