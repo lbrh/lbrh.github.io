@@ -325,7 +325,6 @@ export default function VKXViewer() {
       </div>
 
       {isClient && filteredPath.length > 0 && (
-        // @ts-expect-error for some reason, it doesnt expect map container props
         <MapContainer
           zoomControl={false}
           center={filteredPath[sliderIndex]}
@@ -333,7 +332,6 @@ export default function VKXViewer() {
           style={{ height: "100%", width: "100%" }}
         >
           {
-            // @ts-expect-error same issue here
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution="&copy; OpenStreetMap contributors"
