@@ -14,8 +14,8 @@ export default function AboutMe() {
         complex challenges, and creating impactful projects. I also actively
         participate in hackathons, conferences, and webinars due to a love to
         keep up with new and emerging projects/ideas. Outside of everything
-        digital, I enjoy sailing, bouldering, and reading. I&apos;m always up for a
-        quick coffee chat on or offline so feel free to reach out!
+        digital, I enjoy sailing, bouldering, and reading. I&apos;m always up
+        for a quick coffee chat on or offline so feel free to reach out!
       </p>
     </Card>
   );
