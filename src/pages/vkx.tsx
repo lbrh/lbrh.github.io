@@ -360,13 +360,15 @@ export default function VKXViewer() {
                 {lastPin && (
                   <CircleMarker
                     center={[lastPin.lat, lastPin.lon]}
-                    pathOptions={{ color: "yellow", fillColor: "red" }}
+                    pathOptions={{ color: "yellow", fillColor: "red"}}
+                    radius={5}
                   />
                 )}
                 {lastBoat && (
                   <CircleMarker
                     center={[lastBoat.lat, lastBoat.lon]}
-                    pathOptions={{ color: "yellow", fillColor: "blue" }}
+                    pathOptions={{ color: "yellow", fillColor: "blue"}}
+                    radius={5}
                   />
                 )}
               </>
