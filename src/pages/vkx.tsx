@@ -22,9 +22,10 @@ const CircleMarker = dynamic(
     () => import("react-leaflet").then((mod) => mod.CircleMarker),
     { ssr: false },
 );
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
-  ssr: false,
-});
+const Popup = dynamic(
+    () => import("react-leaflet").then((mod) => mod.Popup),
+    { ssr: false },
+);
 
 interface PositionRecord {
   timestamp: number;
@@ -105,6 +106,7 @@ function parseVKX(buffer: ArrayBuffer) {
 
   return { positions: pos, lines, shifts, timers };
 }
+
 export default function VKXViewer() {
   const [isClient, setIsClient] = useState(false);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -115,11 +117,10 @@ export default function VKXViewer() {
   const dataStartRef = useRef<number>(0);
   const tickerRef = useRef<number | null>(null);
   const colors = ["red", "blue", "green", "orange", "purple", "brown"];
-  const [boatIcon, setBoatIcon] = useState<never>();
+  const [boatIcon, setBoatIcon] = useState<any>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const L = require("leaflet");
       const customIcon = L.icon({
         iconUrl: "/pfp.jpeg",
@@ -156,7 +157,6 @@ export default function VKXViewer() {
       clearInterval(tickerRef.current);
       tickerRef.current = null;
     }
-
     return () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
     };
@@ -170,7 +170,8 @@ export default function VKXViewer() {
       const buffer = await files[i].arrayBuffer();
       const { positions, lines, shifts, timers } = parseVKX(buffer);
       const ps = positions.filter((r, j, a) =>
-          j === 0 || (Math.abs(a[j - 1].lat - r.lat) < 0.1 && Math.abs(a[j - 1].lon - r.lon) < 0.1));
+          j === 0 || (Math.abs(a[j - 1].lat - r.lat) < 0.1 && Math.abs(a[j - 1].lon - r.lon) < 0.1)
+      );
       newTracks.push({
         id: i,
         color: colors[i % colors.length],
@@ -188,9 +189,23 @@ export default function VKXViewer() {
   };
 
   const handleSliderChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const idx = Number(e.target.value);
-    setSliderIndex(idx);
+    setSliderIndex(Number(e.target.value));
     setPlaying(false);
+  };
+
+  const showBoatsAtStart = () => {
+    if (!tracks.length) return;
+    const baseTrack = tracks[0];
+    const raceStarts = baseTrack.timerEvents.filter((e) => e.eventType === 3);
+    const ts = raceStarts[selectedRace]?.timestamp;
+    if (ts) {
+      const { filteredPositions } = getFilteredTrackData(baseTrack, selectedRace);
+      const idx = filteredPositions.findIndex((p) => p.timestamp >= ts);
+      if (idx !== -1) {
+        setSliderIndex(idx);
+        setPlaying(false);
+      }
+    }
   };
 
   const getRaceTimestamps = (track: Track, raceNum: number): [number, number] => {
@@ -231,14 +246,22 @@ export default function VKXViewer() {
             {playing ? "Pause" : "Play"}
           </button>
           {raceEvents.length > 0 && (
-              <select value={selectedRace} onChange={(e) => {
-                setSelectedRace(Number(e.target.value));
-                setSliderIndex(0);
-              }}>
-                {Array.from({ length: raceEvents.length + 1 }, (_, idx) => (
-                    <option key={idx} value={idx}>Race {idx + 1}</option>
-                ))}
-              </select>
+              <>
+                <select
+                    value={selectedRace}
+                    onChange={(e) => {
+                      setSelectedRace(Number(e.target.value));
+                      setSliderIndex(0);
+                    }}
+                >
+                  {Array.from({ length: raceEvents.length + 1 }, (_, idx) => (
+                      <option key={idx} value={idx}>Race {idx + 1}</option>
+                  ))}
+                </select>
+                <button onClick={showBoatsAtStart} style={{ marginLeft: 8 }}>
+                  Show boats at start
+                </button>
+              </>
           )}
           {tracks.length > 0 && (
               <>
@@ -281,7 +304,9 @@ export default function VKXViewer() {
         {isClient && tracks.length > 0 && (
             <MapContainer
                 zoomControl={false}
-                center={getFilteredTrackData(tracks[0], selectedRace).filteredPath[sliderIndex]}
+                center={
+                  getFilteredTrackData(tracks[0], selectedRace).filteredPath[sliderIndex]
+                }
                 zoom={15}
                 style={{ height: "100%", width: "100%" }}
             >
