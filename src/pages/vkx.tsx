@@ -117,10 +117,11 @@ export default function VKXViewer() {
   const dataStartRef = useRef<number>(0);
   const tickerRef = useRef<number | null>(null);
   const colors = ["red", "blue", "green", "orange", "purple", "brown"];
-  const [boatIcon, setBoatIcon] = useState<any>(null);
+  const [boatIcon, setBoatIcon] = useState<never>();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const L = require("leaflet");
       const customIcon = L.icon({
         iconUrl: "/pfp.jpeg",
