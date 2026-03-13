@@ -59,25 +59,25 @@ export default function QRGenerator() {
             {text && (
               <QRCodeCanvas
                 value={text}
-                size={256}
+                size={4096}
                 level={"H"}
                 includeMargin={true}
+                style={{ width: 256, height: 256 }}
               />
             )}
-             {!text && <p className="text-gray-500">Enter text to see QR code</p>}
+            {!text && <p className="text-gray-500">Enter text to see QR code</p>}
           </div>
 
           <div>
             <button
               onClick={downloadQRCode}
               disabled={!text}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                !text
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${!text
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              }`}
+                }`}
             >
-              Download QR Code
+              Download 4K QR Code
             </button>
           </div>
         </div>
