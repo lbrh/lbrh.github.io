@@ -7,8 +7,18 @@ type GalleryPhoto =
   | { src: string; alt: string; caption: string; captionSub?: string };
 
 const PHOTOS: GalleryPhoto[] = [
-  { src: "/1.JPG", alt: "Gallery photo 1" },
-  { src: "/2.png", alt: "Gallery photo 2" },
+  {
+    src: "/1.JPG",
+    alt: "Presenting Telltale Solutions to investors",
+    caption: "Telltale Solutions",
+    captionSub: "Pitching to investors",
+  },
+  {
+    src: "/2.png",
+    alt: "Amazong",
+    caption: "Gates to Amazon Prime Air",
+    captionSub: "From my time as a shadow",
+  },
   {
     src: "/3.jpeg",
     alt: "Group on stage at HEXPO behind a glowing HEXPO sign, celebrating with flowers",
@@ -18,10 +28,15 @@ const PHOTOS: GalleryPhoto[] = [
   {
     src: "/award.jpeg",
     alt: "Holding the RMIT University Nationals Team Spirit wooden shield award in a tartan suit",
-    caption: "Team Spirit",
-    captionSub: "RMIT University Nationals",
+    caption: "RMIT Sailing Award",
+    captionSub: "For best team spirit",
   },
-  { src: "/4.JPG", alt: "Gallery photo 4" },
+  {
+    src: "/4.JPG",
+    alt: "Gallery photo 4",
+    caption: "Crewmates on the J24",
+    captionSub: "Taking home trophies in states and nationals",
+  },
 ];
 
 export default function PhotoStrip() {
@@ -49,7 +64,7 @@ export default function PhotoStrip() {
   function renderPhotoFrame(
     photo: GalleryPhoto,
     keyPrefix: string,
-    withAlt: boolean,
+    withAlt: boolean
   ) {
     const hasCaption = "caption" in photo && photo.caption;
     return (
@@ -79,12 +94,6 @@ export default function PhotoStrip() {
       aria-label="Photo gallery"
       className="relative left-1/2 right-1/2 -mx-[50vw] w-screen space-y-4 overflow-hidden py-1"
     >
-      <h2 className="px-6 text-center text-xl font-semibold text-slate-100 md:text-2xl">
-        Auto-scrolling snapshots
-      </h2>
-      <p className="px-6 text-center text-sm text-slate-200/90">
-        Hover stills for HEXPO and RMIT Nationals captions.
-      </p>
 
       <div
         ref={measureRef}

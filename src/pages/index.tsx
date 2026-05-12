@@ -22,7 +22,7 @@ export default function Home() {
         />
       </Head>
 
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-cyan-950/60 to-[#79b8c9] pb-24 text-slate-900">
+      <div className="min-h-screen bg-gradient-to-b from-[#070b13] via-cyan-950 to-[#79b8c9] pb-24 text-slate-900">
         <Hero />
         <SkillRail />
 
@@ -53,8 +53,8 @@ export default function Home() {
           </Reveal>
         </main>
 
-        <footer className="mx-auto mt-16 max-w-5xl px-6 text-center text-sm text-slate-950/85">
-          Built with Next.js export and Framer Motion, ready for GitHub Pages.
+        <footer className="mx-auto mt-16 italic ax-w-5xl px-6 text-center text-sm text-slate-950/85">
+          I hope you enjoy exploring my work!
         </footer>
       </div>
     </>

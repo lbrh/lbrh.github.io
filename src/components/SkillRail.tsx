@@ -69,10 +69,6 @@ export default function SkillRail() {
           ))}
         </motion.div>
       )}
-
-      <p className="mt-4 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
-        Horizontal strip: marquee of the stack from my resume
-      </p>
     </section>
   );
 }

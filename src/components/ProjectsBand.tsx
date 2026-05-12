@@ -55,17 +55,6 @@ export default function ProjectsBand() {
     <Card className="border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur">
       <SectionHeader title="Projects" />
 
-      <p className="-mt-2 mb-2 text-slate-600 md:text-lg">
-        Choose a project in the strip, swipe the detail card on touch screens, or use{" "}
-        <kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-xs font-semibold">
-          ←
-        </kbd>{" "}
-        <kbd className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-xs font-semibold">
-          →
-        </kbd>{" "}
-        keys. On desktop, move your pointer over the blue card for a subtle tilt.
-      </p>
-
       <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start">
         <nav
           aria-label="Choose a project"
