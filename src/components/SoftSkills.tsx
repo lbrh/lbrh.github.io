@@ -3,49 +3,34 @@ import Card from "./Card";
 
 export default function SoftSkills() {
   return (
-    <Card>
-      <SectionHeader title="Soft Skills" />
-      <ul className="list-disc pl-5 text-sm md:text-lg">
+    <Card className="border border-slate-200/80 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur">
+      <SectionHeader title="Leadership &amp; teamwork" />
+      <ul className="list-disc space-y-4 pl-5 text-sm md:text-lg">
         <li>
-          <strong>Leadership:</strong> Gained through years of experience of
-          starting/leading teams of all sizes, from my highschool&apos;s esports
-          or robotics team with a handful of people, all the way up to the
-          entire year levels through class board
+          <strong>Leadership:</strong> Founded and lead the RMIT Sailing Club,
+          structuring programs so members stay engaged regardless of skill
+          level.
         </li>
-        <br />
         <li>
-          <strong>Team Work and Collaboration:</strong> Also gained through
-          collaborative clubs/sports such as sailing, snowboarding, and GYLI
-          (global youth leadership initiative)
+          <strong>Collaboration:</strong> Comfortable in agile-ish teams spanning
+          robotics builds, sailing committees, and hackathon sprints where the
+          goal is clarity under time pressure.
         </li>
-        <br />
         <li>
-          <strong>Customer Service and Relations:</strong> Developed strong
-          interpersonal skills through different roles including food service at
-          Red Rooster and Off the Planet Burgers, as well as coaching at sailing
-          summer camps.
+          <strong>Customer-facing craft:</strong> Front-of-house, coaching, and
+          on-water race support (including RYCV operations) that keep communication
+          steady when expectations run high.
         </li>
-        <br />
         <li>
-          <strong>Problem Solving:</strong> Sharpened through solo developing
-          technical projects such as Vangbot, and contributing to complex
-          robotics systems in competitions and the RMIT Battle Bots Team.
+          <strong>Brand and outreach:</strong> HEX Ambassador work across fairs,
+          webinars, and partnerships that connect students with entrepreneurship
+          programmes.
         </li>
-        <br />
         <li>
-          <strong>Critical Thinking:</strong> Honed through academic and
-          professional experiences such as my studies at RMIT, where a vast
-          majority of projects involve analyzing complex problems. Also obtained
-          through my certification in Design Thinking from Purdue University.
+          <strong>Human-centred process:</strong> Design Thinking certification
+          (Purdue), including workshops, facilitation, and keeping users in the loop while
+          still shipping pragmatically.
         </li>
-        <br />
-        <li>
-          <strong>Communication:</strong> Strengthened through both leading and
-          being a part of teams in diverse environments, from being on
-          inter-club planning committees to being a community manager at
-          VidLabs.
-        </li>
-        <br />
       </ul>
     </Card>
   );

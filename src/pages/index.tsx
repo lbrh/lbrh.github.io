@@ -1,97 +1,62 @@
-import ComputerHeader from "../components/ComputerHeader";
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import Head from "next/head";
+import Hero from "../components/Hero";
+import SkillRail from "../components/SkillRail";
 import AboutMe from "../components/AboutMe";
+import Education from "../components/Education";
 import SoftSkills from "../components/SoftSkills";
 import HardSkills from "../components/HardSkills";
-import CurrentProjects from "../components/CurrentProjects";
-import Contact from "../components/Contact";
-import Card from "../components/Card";
+import ProjectsBand from "../components/ProjectsBand";
 import Experience from "../components/Experience";
-import MobileHeader from "../components/MobileHeader";
+import PhotoStrip from "../components/PhotoStrip";
+import Contact from "../components/Contact";
+import { Reveal } from "../components/motion/Reveal";
 
 export default function Home() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   return (
-    <div className="bg-[#99c7d0]">
-      {isMobile ? (
-        <div>
-          <MobileHeader />
-          <div className="grid grid-cols-1 p-5 max-w-7xl mx-auto gap-5">
-            <AboutMe />
-            <Experience />
-            <SoftSkills />
-            <HardSkills />
-            <CurrentProjects />
-            <Contact />
-          </div>
-        </div>
-      ) : (
-        <div>
-          <div>
-            <ComputerHeader />
-            <div className="grid grid-cols-2 p-5 max-w-screen-2xl mx-auto gap-5">
-              <AboutMe />
-              <Card>
-                <Image
-                  src="1.JPG"
-                  alt="Temporary Image"
-                  height="50"
-                  width="50"
-                  className="relative h-full w-auto mx-auto object-cover rounded-lg shadow-md"
-                />
-              </Card>
-              <Card>
-                <Image
-                  src="2.png"
-                  alt="Temporary Image"
-                  height="50"
-                  width="50"
-                  className="relative h-full w-auto mx-auto object-cover rounded-lg shadow-md"
-                />
-              </Card>
-              <Experience />
-              <SoftSkills />
-              <HardSkills />
-              <Card>
-                <Image
-                  src="3.jpg"
-                  alt="Temporary Image"
-                  height="50"
-                  width="50"
-                  className="h-full w-auto mx-auto object-cover rounded-lg shadow-md"
-                />
-              </Card>
-              <CurrentProjects />
-              <Contact />
-              <Card>
-                <Image
-                  src="4.JPG"
-                  alt="Temporary Image"
-                  height="50"
-                  width="50"
-                  className="h-full w-auto mx-auto object-cover rounded-lg shadow-md"
-                />
-              </Card>
-            </div>
-          </div>
-        </div>
-      )}
+    <>
+      <Head>
+        <title>Liam Robinson Hounsell | Software Engineer</title>
+        <meta
+          name="description"
+          content="Portfolio of Liam Robinson Hounsell: full stack software engineer in Melbourne building Next.js apps, cloud backends, and data-driven experiences."
+        />
+      </Head>
 
-      <footer className="bg-[#516a6f] text-white text-center py-2.5">
-        <p>Hope you enjoyed my website!</p>
-      </footer>
-    </div>
+      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-cyan-950/60 to-[#79b8c9] pb-24 text-slate-900">
+        <Hero />
+        <SkillRail />
+
+        <main className="mx-auto mt-14 max-w-5xl space-y-14 px-4 sm:mt-16 sm:px-6 md:mt-24 md:space-y-20 lg:max-w-6xl lg:px-8">
+          <Reveal direction="right" delay={0.02}>
+            <AboutMe />
+          </Reveal>
+          <Reveal direction="left" delay={0.04}>
+            <Education />
+          </Reveal>
+          <Reveal direction="up">
+            <HardSkills />
+          </Reveal>
+          <Reveal direction="left">
+            <Experience />
+          </Reveal>
+          <Reveal direction="right">
+            <ProjectsBand />
+          </Reveal>
+          <Reveal direction="up">
+            <SoftSkills />
+          </Reveal>
+          <Reveal direction="left">
+            <Contact />
+          </Reveal>
+          <Reveal direction="up">
+            <PhotoStrip />
+          </Reveal>
+        </main>
+
+        <footer className="mx-auto mt-16 max-w-5xl px-6 text-center text-sm text-slate-950/85">
+          Built with Next.js export and Framer Motion, ready for GitHub Pages.
+        </footer>
+      </div>
+    </>
   );
 }
