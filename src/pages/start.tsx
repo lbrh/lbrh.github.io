@@ -138,9 +138,20 @@ export default function AutoStartSheetMaker() {
         )[c],
     );
 
-  const buildHtml = (logo: string, lunch: string, crew: string) => {
-    if (!processed) return "";
-    const headerBlock = `
+  const STYLE =
+    `<style>@page{size:A4;margin:5mm;}body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
+    `table{table-layout:auto;border-collapse:collapse;margin:10px auto;font-size:9pt;}` +
+    `th,td{border:1px solid black;padding:4px;text-align:left;white-space:nowrap;}` +
+    `th{background:#f0f0f0;}h1,h3{text-align:center;margin:0;}` +
+    `.header{display:flex;align-items:center;justify-content:center;margin-bottom:20px;}` +
+    `.logo{width:60px;height:100px;object-fit:contain;margin:0 15px;}` +
+    `.header-text{text-align:center;}` +
+    `.content-row{display:flex;align-items:stretch;justify-content:center;}` +
+    `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;}` +
+    `.side-qr img{width:80px;height:80px;margin-top:5px;}` +
+    `td.cb input[type=checkbox]{transform:scale(.75);margin:0;}</style>`;
+
+  const headerBlock = (logo: string) => `
       <div class="header">
         <img src="${logo}" class="logo" alt="Logo">
         <div class="header-text">
@@ -152,6 +163,11 @@ export default function AutoStartSheetMaker() {
         <img src="${logo}" class="logo" alt="Logo">
       </div>`;
 
+  const doc = (title: string, body: string) =>
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${STYLE}</head><body>${body}</body></html>`;
+
+  const buildCompetitorHtml = (logo: string, lunch: string, crew: string) => {
+    if (!processed) return "";
     const headRow = processed.headers.map((h) => `<th>${esc(h)}</th>`).join("");
     const bodyRows = processed.data
       .map(
@@ -161,8 +177,7 @@ export default function AutoStartSheetMaker() {
             .join("")}</tr>`,
       )
       .join("");
-
-    const competitorTable = `
+    const table = `
       <div class="content-row">
         ${
           raceType === "pursuit"
@@ -184,8 +199,13 @@ export default function AutoStartSheetMaker() {
             : ""
         }
       </div>`;
+    return doc(`${eventName} - ${raceNumber}`, headerBlock(logo) + table);
+  };
 
-    const checkboxBody = processed.data
+  const buildCheckboxHtml = (logo: string) => {
+    if (!processed) return "";
+    const headRow = processed.headers.map((h) => `<th>${esc(h)}</th>`).join("");
+    const body = processed.data
       .map(
         (row) =>
           `<tr><td class="cb"><input type="checkbox"></td><td class="cb"><input type="checkbox"></td>${processed.headers
@@ -193,33 +213,24 @@ export default function AutoStartSheetMaker() {
             .join("")}</tr>`,
       )
       .join("");
-    const checkboxTable = `
+    const table = `
       <table>
         <thead><tr><th>Here</th><th>Crew Declaration</th>${headRow}</tr></thead>
-        <tbody>${checkboxBody}</tbody>
+        <tbody>${body}</tbody>
       </table>`;
+    return doc(`${eventName} - ${raceNumber} (sign-on)`, headerBlock(logo) + table);
+  };
 
-    return (
-      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(eventName)} - ${esc(raceNumber)}</title>` +
-      `<style>@page{size:A4;margin:5mm;}body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
-      `table{table-layout:auto;border-collapse:collapse;margin:10px auto;font-size:9pt;}` +
-      `th,td{border:1px solid black;padding:4px;text-align:left;white-space:nowrap;}` +
-      `th{background:#f0f0f0;}h1,h3{text-align:center;margin:0;}` +
-      `.header{display:flex;align-items:center;justify-content:center;margin-bottom:20px;}` +
-      `.logo{width:60px;height:100px;object-fit:contain;margin:0 15px;}` +
-      `.header-text{text-align:center;}` +
-      `.content-row{display:flex;align-items:stretch;justify-content:center;}` +
-      `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;}` +
-      `.side-qr img{width:80px;height:80px;margin-top:5px;}` +
-      `.page-break{page-break-before:always;}` +
-      `td.cb input[type=checkbox]{transform:scale(.75);margin:0;}</style></head><body>` +
-      headerBlock +
-      competitorTable +
-      `<div class="page-break"></div>` +
-      headerBlock +
-      checkboxTable +
-      `</body></html>`
-    );
+  const downloadFile = (html: string, name: string) => {
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const downloadSheet = async () => {
@@ -232,17 +243,11 @@ export default function AutoStartSheetMaker() {
         toDataUrl(LUNCH_QR),
         toDataUrl(CREW_QR),
       ]);
-      const html = buildHtml(logo, lunch, crew);
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safe = `${eventName} ${raceNumber}`.trim().replace(/[\\/:*?"<>|]+/g, "-");
-      a.download = `${safe || "race-sheet"}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const safe = `${eventName} ${raceNumber}`.trim().replace(/[\\/:*?"<>|]+/g, "-") || "race-sheet";
+      downloadFile(buildCompetitorHtml(logo, lunch, crew), `${safe} - competitor.html`);
+      // Slight delay so browsers don't suppress the second download.
+      await new Promise((r) => setTimeout(r, 400));
+      downloadFile(buildCheckboxHtml(logo), `${safe} - sign-on.html`);
     } catch (e) {
       setError(
         `Could not build the download: ${e instanceof Error ? e.message : String(e)}`,
@@ -421,11 +426,12 @@ export default function AutoStartSheetMaker() {
                 : "cursor-not-allowed bg-gray-400"
             }`}
           >
-            {downloading ? "Preparing download…" : "Download Race Sheet (HTML)"}
+            {downloading ? "Preparing downloads…" : "Download Race Sheets (HTML)"}
           </button>
           <p className="mt-2 text-xs text-gray-500">
-            Downloads a self-contained file with images embedded. Open it and
-            use your browser&apos;s Print to save as PDF.
+            Downloads two self-contained files (competitor sheet and sign-on
+            sheet) with images embedded. Open each and use your browser&apos;s
+            Print to save as PDF.
           </p>
         </div>
 
