@@ -109,31 +109,147 @@ export default function AutoStartSheetMaker() {
 
   const ready = processed && eventName.trim() && raceType;
   const date = todayDate();
+  const [downloading, setDownloading] = useState(false);
 
-  const printArea = () => {
-    const node = document.getElementById("print-area");
-    if (!node) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(
-      `<!DOCTYPE html><html><head><title>${eventName} - ${raceNumber}</title>` +
-        `<style>@page{size:A4;margin:5mm;}body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
-        `table{table-layout:auto;border-collapse:collapse;margin:10px auto;font-size:8pt;}` +
-        `th,td{border:1px solid black;padding:4px;text-align:left;white-space:nowrap;}` +
-        `th{background:#f0f0f0;}h1,h2,h3{text-align:center;margin:5px 0;}` +
-        `.header{display:flex;align-items:center;justify-content:center;margin-bottom:20px;}` +
-        `.logo{width:60px;height:100px;object-fit:contain;margin:0 15px;}` +
-        `.content-row{display:flex;align-items:stretch;justify-content:center;}` +
-        `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;}` +
-        `.side-qr img{width:80px;height:80px;margin-top:5px;}` +
-        `.page-break{page-break-before:always;}` +
-        `input[type=checkbox]{transform:scale(.75);margin:0;}</style></head><body>` +
-        node.innerHTML +
-        `</body></html>`,
+  const toDataUrl = async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Could not load ${url}`);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as string);
+      fr.onerror = () => reject(new Error(`Could not read ${url}`));
+      fr.readAsDataURL(blob);
+    });
+  };
+
+  const esc = (s: string) =>
+    s.replace(
+      /[&<>"']/g,
+      (c) =>
+        (
+          ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          }) as Record<string, string>
+        )[c],
     );
-    win.document.close();
-    win.focus();
-    win.print();
+
+  const buildHtml = (logo: string, lunch: string, crew: string) => {
+    if (!processed) return "";
+    const headerBlock = `
+      <div class="header">
+        <img src="${logo}" class="logo" alt="Logo">
+        <div class="header-text">
+          <h1>${esc(eventName)}</h1>
+          <h3>${esc(raceNumber)}</h3>
+          <h3>${esc(startTime)}</h3>
+          <h3>${esc(date)}</h3>
+        </div>
+        <img src="${logo}" class="logo" alt="Logo">
+      </div>`;
+
+    const headRow = processed.headers.map((h) => `<th>${esc(h)}</th>`).join("");
+    const bodyRows = processed.data
+      .map(
+        (row) =>
+          `<tr>${processed.headers
+            .map((h) => `<td>${esc(String(row[h] ?? ""))}</td>`)
+            .join("")}</tr>`,
+      )
+      .join("");
+
+    const competitorTable = `
+      <div class="content-row">
+        ${
+          raceType === "pursuit"
+            ? `<div class="side-qr left">
+                 <p><a href="${LUNCH_LINK}">Book a table for lunch before or dinner after racing</a></p>
+                 <img src="${lunch}" alt="Lunch Booking QR">
+               </div>`
+            : ""
+        }
+        <div class="table-container">
+          <table><thead><tr>${headRow}</tr></thead><tbody>${bodyRows}</tbody></table>
+        </div>
+        ${
+          raceType === "pursuit"
+            ? `<div class="side-qr right">
+                 <p><a href="${CREW_LINK}">Crew registration</a></p>
+                 <img src="${crew}" alt="Crew Registration QR">
+               </div>`
+            : ""
+        }
+      </div>`;
+
+    const checkboxBody = processed.data
+      .map(
+        (row) =>
+          `<tr><td class="cb"><input type="checkbox"></td><td class="cb"><input type="checkbox"></td>${processed.headers
+            .map((h) => `<td>${esc(String(row[h] ?? ""))}</td>`)
+            .join("")}</tr>`,
+      )
+      .join("");
+    const checkboxTable = `
+      <table>
+        <thead><tr><th>Here</th><th>Crew Declaration</th>${headRow}</tr></thead>
+        <tbody>${checkboxBody}</tbody>
+      </table>`;
+
+    return (
+      `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(eventName)} - ${esc(raceNumber)}</title>` +
+      `<style>@page{size:A4;margin:5mm;}body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
+      `table{table-layout:auto;border-collapse:collapse;margin:10px auto;font-size:9pt;}` +
+      `th,td{border:1px solid black;padding:4px;text-align:left;white-space:nowrap;}` +
+      `th{background:#f0f0f0;}h1,h3{text-align:center;margin:0;}` +
+      `.header{display:flex;align-items:center;justify-content:center;margin-bottom:20px;}` +
+      `.logo{width:60px;height:100px;object-fit:contain;margin:0 15px;}` +
+      `.header-text{text-align:center;}` +
+      `.content-row{display:flex;align-items:stretch;justify-content:center;}` +
+      `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;}` +
+      `.side-qr img{width:80px;height:80px;margin-top:5px;}` +
+      `.page-break{page-break-before:always;}` +
+      `td.cb input[type=checkbox]{transform:scale(.75);margin:0;}</style></head><body>` +
+      headerBlock +
+      competitorTable +
+      `<div class="page-break"></div>` +
+      headerBlock +
+      checkboxTable +
+      `</body></html>`
+    );
+  };
+
+  const downloadSheet = async () => {
+    if (!ready) return;
+    setDownloading(true);
+    setError("");
+    try {
+      const [logo, lunch, crew] = await Promise.all([
+        toDataUrl(LOGO),
+        toDataUrl(LUNCH_QR),
+        toDataUrl(CREW_QR),
+      ]);
+      const html = buildHtml(logo, lunch, crew);
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safe = `${eventName} ${raceNumber}`.trim().replace(/[\\/:*?"<>|]+/g, "-");
+      a.download = `${safe || "race-sheet"}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(
+        `Could not build the download: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -297,16 +413,20 @@ export default function AutoStartSheetMaker() {
           </div>
 
           <button
-            onClick={printArea}
-            disabled={!ready}
+            onClick={downloadSheet}
+            disabled={!ready || downloading}
             className={`mt-6 rounded-md px-4 py-2 text-sm font-medium text-white ${
-              ready
+              ready && !downloading
                 ? "bg-indigo-600 hover:bg-indigo-700"
                 : "cursor-not-allowed bg-gray-400"
             }`}
           >
-            Print / Save as PDF
+            {downloading ? "Preparing download…" : "Download Race Sheet (HTML)"}
           </button>
+          <p className="mt-2 text-xs text-gray-500">
+            Downloads a self-contained file with images embedded. Open it and
+            use your browser&apos;s Print to save as PDF.
+          </p>
         </div>
 
         {/* Preview / print area */}
