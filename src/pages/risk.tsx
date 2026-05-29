@@ -335,14 +335,14 @@ export default function AutoRisk() {
         </div>
 
         {result && (
-          <div className="mt-8 rounded-xl bg-white p-8 shadow-md">
+          <div id="risk-report" className="mt-8 rounded-xl bg-white p-8 shadow-md">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold text-gray-900">
                 Risk Assessment
               </h2>
               <button
                 onClick={() => window.print()}
-                className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                className="no-print rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
               >
                 Print / Save PDF
               </button>
@@ -394,6 +394,29 @@ export default function AutoRisk() {
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #risk-report,
+          #risk-report * {
+            visibility: visible;
+          }
+          #risk-report {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            box-shadow: none;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
