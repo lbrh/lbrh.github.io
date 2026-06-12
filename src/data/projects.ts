@@ -9,6 +9,8 @@ export type ProjectItem = {
   dates: string;
   bullets: string[];
   links?: ProjectLink[];
+  /** Optional background image shown at low opacity, brighter on hover */
+  image?: string;
 };
 
 export const PROJECTS: ProjectItem[] = [
@@ -16,6 +18,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "Cognoscere",
     org: "Telltale Solutions",
     dates: "Nov 2024 to present",
+    image: "/proj-cognoscere.png",
     bullets: [
       "Ingests binary VKX race files into structured, queryable data for Vakaros workflows.",
       "Lets sailors merge personal telemetry with shared datasets for clearer insights.",
@@ -28,6 +31,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "RMIT Sailing Club website",
     org: "RMIT Sailing Club",
     dates: "Nov 2025 to present",
+    image: "/proj-rmit.png",
     bullets: [
       "Full stack club hub: events, registrations, announcements, and media from training and regattas.",
       "Next.js and TypeScript on AWS for hosting and responsive performance.",
@@ -40,6 +44,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "FormGuard",
     org: "Macathon 2026 (top 5 of 32)",
     dates: "Apr 2026",
+    image: "/proj-formguard.png",
     bullets: [
       "Real-time MediaPipe pose tracking in the browser across full sets, not single snapshots.",
       "Joint angles, depth, and rep cadence to spot where form breaks down mid-set.",
@@ -55,6 +60,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "University software engineering projects",
     org: "RMIT University · team coursework",
     dates: "Jul 2023 to present",
+    image: "/proj-university.png",
     bullets: [
       "Webby (2025): Python web app and RMIT AI chatbot with vector search and scraping for fresh answers.",
       "EventHub (2025): Scrum Master for a six-person event platform; SRS, architecture, and Scrum hygiene.",
@@ -67,6 +73,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "Personal portfolio site",
     org: "Design and deployment practice",
     dates: "Jun 2025 onward",
+    image: "/proj-portfolio.png",
     bullets: [
       "Ongoing frontend playground for deploying polished static experiences.",
       "This repository powers the shipped GitHub Pages build you are browsing.",
@@ -80,6 +87,7 @@ export const PROJECTS: ProjectItem[] = [
     title: "VangBot",
     org: "High school · Discord.js v14",
     dates: "Sep 2019 to Aug 2023",
+    image: "/proj-vangbot.png",
     bullets: [
       "Feature-rich Discord bot written before reliable LLM code assist, focused on handcrafted logic.",
       "Modular commands and events with OpenAI integrations for utility and moderation.",
