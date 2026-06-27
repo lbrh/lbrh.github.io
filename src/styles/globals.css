@@ -39,10 +39,14 @@ body {
   color: var(--fg);
   font-family: var(--font-body);
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Hide default cursor everywhere */
-* { cursor: none !important; }
+/* Hide default cursor everywhere — only on devices with a real pointer.
+   Touch devices keep their native cursor / tap behaviour. */
+@media (hover: hover) and (pointer: fine) {
+  * { cursor: none !important; }
+}
 
 /* ─── Grain overlay ──────────────────────────────────────────── */
 body::after {
@@ -112,6 +116,12 @@ body::after {
   height: 56px;
   background: var(--accent-dim);
   border-color: var(--accent);
+}
+
+/* Never show the custom cursor on touch / coarse-pointer devices */
+@media (hover: none), (pointer: coarse) {
+  .cursor-dot,
+  .cursor-ring { display: none !important; }
 }
 
 /* ─── Marquee ────────────────────────────────────────────────── */

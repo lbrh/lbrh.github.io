@@ -1,10 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Cursor() {
   const dotRef  = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
+  const [enabled, setEnabled] = useState(false);
+
+  /* Only enable the custom cursor on devices with a real (fine) pointer.
+     Touch / coarse-pointer devices keep their native behaviour. */
+  useEffect(() => {
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      setEnabled(true);
+    }
+  }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     const dot  = dotRef.current;
     const ring = ringRef.current;
     if (!dot || !ring) return;
@@ -63,7 +73,9 @@ export default function Cursor() {
       window.removeEventListener('mousemove', onMove);
       document.documentElement.removeEventListener('mouseleave', onLeave);
     };
-  }, []);
+  }, [enabled]);
+
+  if (!enabled) return null;
 
   return (
     <>

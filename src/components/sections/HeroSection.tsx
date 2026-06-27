@@ -21,12 +21,15 @@ export default function HeroSection() {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
 
-      tl.from(badgeRef.current, { opacity: 0, y: 18, duration: 0.65, delay: 0.15 })
+      /* fromTo (not from) because these elements carry an opacity-0 /
+         scaleX(0) class for FOUC prevention — a plain .from() would read
+         that 0 as the end value and leave them permanently invisible. */
+      tl.fromTo(badgeRef.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65, delay: 0.15 })
         .from(chars,            { y: 120, opacity: 0, duration: 0.85, stagger: 0.022 }, '-=0.3')
-        .from(dividerRef.current, { scaleX: 0, duration: 0.7, ease: 'power3.inOut', transformOrigin: 'left' }, '-=0.5')
-        .from(subRef.current,   { opacity: 0, y: 22, duration: 0.75 }, '-=0.4')
-        .from(ctaRef.current,   { opacity: 0, y: 18, duration: 0.65 }, '-=0.45')
-        .from(scrollRef.current, { opacity: 0, duration: 0.5 }, '-=0.2');
+        .fromTo(dividerRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: 'power3.inOut', transformOrigin: 'left' }, '-=0.5')
+        .fromTo(subRef.current,   { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.75 }, '-=0.4')
+        .fromTo(ctaRef.current,   { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65 }, '-=0.45')
+        .fromTo(scrollRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5 }, '-=0.2');
     });
 
     return () => ctx.revert();
@@ -138,7 +141,7 @@ export default function HeroSection() {
       {/* Scroll indicator */}
       <div
         ref={scrollRef}
-        className="absolute bottom-10 right-10 z-20 flex flex-col items-center gap-3 opacity-0"
+        className="absolute bottom-10 right-10 z-20 hidden flex-col items-center gap-3 opacity-0 sm:flex"
         style={{ animation: 'none' }}
       >
         <span

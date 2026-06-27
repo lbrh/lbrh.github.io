@@ -2,9 +2,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const PARTICLE_COUNT  = 200;
 const CONNECT_DIST    = 7.5;
-const MAX_CONNECTIONS = 600;
 
 interface Pt { vx: number; vy: number; vz: number; baseX: number; baseY: number; baseZ: number; }
 
@@ -14,6 +12,11 @@ export default function ParticleCanvas() {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+
+    /* Lighter particle field on phones — keeps the animation smooth */
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const PARTICLE_COUNT  = isMobile ? 90  : 200;
+    const MAX_CONNECTIONS = isMobile ? 250 : 600;
 
     const W = mount.clientWidth;
     const H = mount.clientHeight;
