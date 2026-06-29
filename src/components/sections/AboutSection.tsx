@@ -91,7 +91,7 @@ export default function AboutSection() {
             <div className="about-line font-display text-[clamp(2.4rem,5vw,4.5rem)] font-black leading-[0.92] tracking-[-0.02em] text-fg">
               problems into
             </div>
-            <div className="about-line font-display text-[clamp(2.4rem,5vw,4.5rem)] font-black leading-[0.92] tracking-[-0.02em]">
+            <div className="about-line font-display text-[clamp(2.4rem,5vw,4.5rem)] font-black leading-[0.92] tracking-[-0.02em] pb-[0.18em]">
               <span className="text-accent">elegant code.</span>
             </div>
           </div>

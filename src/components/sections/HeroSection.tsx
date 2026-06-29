@@ -25,7 +25,10 @@ export default function HeroSection() {
          scaleX(0) class for FOUC prevention — a plain .from() would read
          that 0 as the end value and leave them permanently invisible. */
       tl.fromTo(badgeRef.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65, delay: 0.15 })
-        .from(chars,            { y: 120, opacity: 0, duration: 0.85, stagger: 0.022 }, '-=0.3')
+        .fromTo(chars,
+                { yPercent: 120, opacity: 0 },
+                { yPercent: 0, opacity: 1, duration: 0.85, stagger: 0.022, clearProps: 'transform' },
+                '-=0.3')
         .fromTo(dividerRef.current, { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: 'power3.inOut', transformOrigin: 'left' }, '-=0.5')
         .fromTo(subRef.current,   { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.75 }, '-=0.4')
         .fromTo(ctaRef.current,   { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.65 }, '-=0.45')

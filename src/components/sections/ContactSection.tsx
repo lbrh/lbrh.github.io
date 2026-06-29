@@ -146,7 +146,6 @@ export default function ContactSection() {
             { label: 'GitHub',   href: 'https://github.com/lbrh' },
             { label: 'LinkedIn', href: 'https://www.linkedin.com/in/lbrh' },
             { label: 'Resume',   href: '/Liam_Robinson_Hounsell_Resume.pdf' },
-            { label: 'RMIT Sailing', href: 'https://www.rmitsailing.club/' },
           ].map((l) => (
             <a
               key={l.label}
