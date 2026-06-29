@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import gsap from 'gsap';
 
@@ -13,6 +13,20 @@ export default function HeroSection() {
   const ctaRef      = useRef<HTMLDivElement>(null);
   const dividerRef  = useRef<HTMLDivElement>(null);
   const scrollRef   = useRef<HTMLDivElement>(null);
+
+  /* Defer the heavy Three.js particle field off the initial load path — it's a
+     decorative hero backdrop (hidden behind the preloader at first), so loading
+     it once the browser is idle keeps it off the critical path for LCP/TBT. */
+  const [showCanvas, setShowCanvas] = useState(false);
+  useEffect(() => {
+    const ric = window.requestIdleCallback;
+    if (ric) {
+      const id = ric(() => setShowCanvas(true), { timeout: 2500 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(() => setShowCanvas(true), 1500);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     const chars = headingRef.current?.querySelectorAll<HTMLElement>('.h-char');
@@ -43,8 +57,8 @@ export default function HeroSection() {
       id="hero"
       className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden"
     >
-      {/* Three.js canvas */}
-      <ParticleCanvas />
+      {/* Three.js canvas — mounted once idle so Three.js stays off the critical path */}
+      {showCanvas && <ParticleCanvas />}
 
       {/* Layered overlays */}
       <div
@@ -75,10 +89,13 @@ export default function HeroSection() {
         <h1
           ref={headingRef}
           className="font-display font-black leading-[0.88] tracking-[-0.025em] text-white"
-          style={{ fontSize: 'clamp(3.5rem, 12vw, 11rem)' }}
+          /* Shrink to fit so the longest name word (≈5.16× the font size) never
+             wraps between its per-letter spans — the cap only bites below ~375px
+             (folds / Z Fold cover), normal phones stay at the 3.5rem floor. */
+          style={{ fontSize: 'min(clamp(3.5rem, 12vw, 11rem), calc((100vw - 4rem) / 5.6))' }}
         >
           {NAME_LINES.map((word, wi) => (
-            <span key={wi} className="block overflow-hidden">
+            <span key={wi} className="block overflow-hidden whitespace-nowrap">
               {/* First letter — accent colour */}
               <span className="h-char inline-block" style={{ color: 'var(--accent)' }}>
                 {word[0]}

@@ -155,7 +155,7 @@ export default function AboutSection() {
               style={{ transformStyle: 'preserve-3d', transition: 'transform 0.12s ease-out' }}
             >
               <Image
-                src="/pfp.jpeg"
+                src="/pfp.webp"
                 alt="Liam Brian Robinson Hounsell"
                 fill
                 className="object-cover grayscale-[15%]"

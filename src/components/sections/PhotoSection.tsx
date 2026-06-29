@@ -17,13 +17,13 @@ const COLUMNS: { src: string; alt: string; aspect: string; position: string }[][
   // Column 2
   [
     { src: '/IMG_2260.JPG', alt: 'Regatta crew',    aspect: 'aspect-[4/3]', position: 'object-top' },
-    { src: '/3.jpeg',       alt: 'HEXPO',           aspect: 'aspect-[4/3]', position: 'object-center' },
-    { src: '/IMG_3369.jpeg',alt: 'Networking chat',  aspect: 'aspect-[4/3]', position: 'object-center' },
+    { src: '/3.webp',       alt: 'HEXPO',           aspect: 'aspect-[4/3]', position: 'object-center' },
+    { src: '/IMG_3369.webp',alt: 'Networking chat',  aspect: 'aspect-[4/3]', position: 'object-center' },
   ],
   // Column 3
   [
-    { src: '/award.jpeg',   alt: 'Award ceremony',  aspect: 'aspect-[3/4]', position: 'object-top' },
-    { src: '/hex-team.jpg', alt: 'HEX ambassadors', aspect: 'aspect-[3/4]', position: 'object-right-top' },
+    { src: '/award.webp',   alt: 'Award ceremony',  aspect: 'aspect-[3/4]', position: 'object-top' },
+    { src: '/hex-team.webp', alt: 'HEX ambassadors', aspect: 'aspect-[3/4]', position: 'object-right-top' },
   ],
 ];
 
