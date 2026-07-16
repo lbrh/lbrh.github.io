@@ -537,6 +537,9 @@ export default function AutoStartSheetMaker() {
         )}
       </div>
 
+      <style jsx global>{`
+        body { background: #f9fafb !important; color: #000 !important; }
+      `}</style>
       <style jsx>{`
         #print-area :global(.header) {
           display: flex;
