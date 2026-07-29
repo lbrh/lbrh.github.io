@@ -139,7 +139,13 @@ export default function AutoStartSheetMaker() {
     );
 
   const STYLE =
-    `<style>@page{size:A4;margin:5mm;}body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
+    `<style>@page{size:A4;margin:5mm;}html,body{height:auto;}` +
+    `body{font-family:Arial,sans-serif;font-size:12pt;margin:0;}` +
+    // Fit-to-page wrapper: #fit-inner is laid out at the exact A4 content width
+    // (210mm - 2x5mm margin) so screen and print measure identically, then it is
+    // scaled down as a whole to fit one page.
+    `#fit-outer{margin:0 auto;overflow:hidden;}` +
+    `#fit-inner{width:200mm;transform-origin:top left;}` +
     `table{table-layout:auto;border-collapse:collapse;margin:10px auto;font-size:9pt;}` +
     `th,td{border:1px solid black;padding:4px;text-align:left;white-space:nowrap;}` +
     `th{background:#f0f0f0;}h1,h3{text-align:center;margin:0;}` +
@@ -163,8 +169,35 @@ export default function AutoStartSheetMaker() {
         <img src="${logo}" class="logo" alt="Logo">
       </div>`;
 
+  // Shrinks the whole sheet just enough to land on a single A4 page. Measures a
+  // 100mm probe so the available page box is derived from real print units
+  // rather than the screen viewport.
+  const FIT_SCRIPT =
+    `<script>(function(){function fit(){` +
+    `var outer=document.getElementById('fit-outer'),inner=document.getElementById('fit-inner');` +
+    `if(!outer||!inner)return;` +
+    `inner.style.transform='none';outer.style.width='auto';outer.style.height='auto';` +
+    `var probe=document.createElement('div');` +
+    `probe.style.cssText='position:absolute;left:-9999px;top:0;width:100mm;height:100mm;';` +
+    `document.body.appendChild(probe);` +
+    `var mm=probe.getBoundingClientRect().height/100;` +
+    `document.body.removeChild(probe);` +
+    `if(!mm)return;` +
+    // 0.99 leaves a hair of slack so sub-pixel rounding can't trigger page 2.
+    `var availH=(297-10)*mm*0.99,availW=(210-10)*mm;` +
+    `var h=inner.scrollHeight,w=inner.scrollWidth;` +
+    `if(!h||!w)return;` +
+    `var s=Math.min(1,availH/h,availW/w);` +
+    `inner.style.transform='scale('+s+')';` +
+    `outer.style.width=Math.ceil(w*s)+'px';` +
+    `outer.style.height=Math.ceil(h*s)+'px';}` +
+    `window.addEventListener('load',fit);` +
+    `window.addEventListener('beforeprint',fit);` +
+    `if(document.readyState==='complete')fit();})();</scr` + `ipt>`;
+
   const doc = (title: string, body: string) =>
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${STYLE}</head><body>${body}</body></html>`;
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>${STYLE}</head>` +
+    `<body><div id="fit-outer"><div id="fit-inner">${body}</div></div>${FIT_SCRIPT}</body></html>`;
 
   const buildCompetitorHtml = (logo: string, lunch: string, crew: string) => {
     if (!processed) return "";
