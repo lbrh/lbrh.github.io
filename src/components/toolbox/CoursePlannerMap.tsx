@@ -1,0 +1,68 @@
+import { MapContainer, TileLayer, CircleMarker, Tooltip, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import type { CourseMark } from '@/data/longDistanceMarks';
+
+export default function CoursePlannerMap({
+  marks,
+  route,
+  onMarkClick,
+}: {
+  marks: CourseMark[];
+  route: string[];
+  onMarkClick: (name: string) => void;
+}) {
+  const byName = new Map(marks.map((m) => [m.name, m]));
+  const routeLatLngs = route
+    .map((n) => byName.get(n))
+    .filter((m): m is CourseMark => !!m)
+    .map((m) => [m.lat, m.lng] as [number, number]);
+
+  return (
+    <MapContainer
+      center={[-38.02, 144.95]}
+      zoom={9}
+      scrollWheelZoom
+      style={{ height: '100%', width: '100%', background: '#eef1f4' }}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+      />
+
+      {routeLatLngs.length > 1 && (
+        <Polyline
+          positions={routeLatLngs}
+          pathOptions={{ color: '#b42318', weight: 2.5, dashArray: '8 6' }}
+        />
+      )}
+
+      {marks.map((m) => {
+        const routeIndices = route
+          .map((n, i) => (n === m.name ? i + 1 : null))
+          .filter((i): i is number => i !== null);
+        const active = routeIndices.length > 0;
+        return (
+          <CircleMarker
+            key={m.name}
+            center={[m.lat, m.lng]}
+            radius={active ? 7 : 5}
+            pathOptions={{
+              color: '#1b1f24',
+              weight: active ? 2 : 1,
+              fillColor: active ? '#1a56a8' : '#8a929c',
+              fillOpacity: active ? 1 : 0.65,
+            }}
+            eventHandlers={{ click: () => onMarkClick(m.name) }}
+          >
+            <Tooltip direction="top" offset={[0, -4]}>
+              <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                {active ? `#${routeIndices.join(', #')} · ` : ''}
+                {m.name} — {m.description}
+              </span>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </MapContainer>
+  );
+}

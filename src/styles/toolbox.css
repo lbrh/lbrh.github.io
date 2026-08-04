@@ -1,0 +1,238 @@
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBOX — deliberately plain, corporate, document-like.
+   White surfaces, neutral greys, one blue accent, no ornament.
+   Scoped under .toolbox so it neither inherits from nor leaks into
+   the portfolio's dark theme in globals.css.
+   ═══════════════════════════════════════════════════════════════ */
+
+.toolbox {
+  --tb-bg: #ffffff;
+  --tb-surface: #f7f8fa;
+  --tb-surface-alt: #eef1f4;
+  --tb-border: #e3e6ea;
+  --tb-border-strong: #cbd1d8;
+  --tb-text: #1b1f24;
+  --tb-text-muted: #5b6470;
+  --tb-text-faint: #8a929c;
+  --tb-accent: #1a56a8;
+  --tb-accent-hover: #14468a;
+  --tb-accent-soft: #eef3fa;
+  --tb-danger: #b42318;
+  --tb-warn: #b54708;
+  --tb-ok: #1f7a44;
+
+  --tb-sans: var(--tb-font-sans), 'IBM Plex Sans', system-ui, sans-serif;
+  --tb-mono: var(--tb-font-mono), 'IBM Plex Mono', monospace;
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--tb-bg);
+  color: var(--tb-text);
+  font-family: var(--tb-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: auto !important;
+}
+
+.toolbox * {
+  cursor: auto !important;
+}
+
+.toolbox a,
+.toolbox button,
+.toolbox select,
+.toolbox label,
+.toolbox input[type='checkbox'],
+.toolbox input[type='radio'] {
+  cursor: pointer !important;
+}
+
+.toolbox input[type='text'],
+.toolbox input[type='number'],
+.toolbox textarea {
+  cursor: text !important;
+}
+
+/* ─── Typography ─────────────────────────────────────────────── */
+.tb-display {
+  font-family: var(--tb-sans);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.tb-mono {
+  font-family: var(--tb-mono);
+}
+
+/* Small-caps section label — the workhorse of the corporate look. */
+.tb-eyebrow {
+  font-family: var(--tb-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tb-text-faint);
+}
+
+/* ─── Reveal ─────────────────────────────────────────────────── */
+@keyframes tb-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tb-anim-unfurl,
+.tb-anim-rise {
+  animation: tb-rise 0.35s ease-out both;
+}
+
+/* ─── Surfaces ───────────────────────────────────────────────── */
+.tb-card {
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border);
+  border-radius: 3px;
+}
+
+.tb-panel {
+  background: var(--tb-surface);
+  border: 1px solid var(--tb-border);
+  border-radius: 3px;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+.tb-btn {
+  font-family: var(--tb-sans);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--tb-accent);
+  color: #ffffff;
+  border: 1px solid var(--tb-accent);
+  border-radius: 3px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tb-btn:hover:not(:disabled) {
+  background: var(--tb-accent-hover);
+  border-color: var(--tb-accent-hover);
+}
+
+.tb-btn:disabled,
+.tb-btn-ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed !important;
+}
+
+.tb-btn-ghost {
+  font-family: var(--tb-sans);
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border-strong);
+  color: var(--tb-text);
+  border-radius: 3px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tb-btn-ghost:hover:not(:disabled) {
+  background: var(--tb-surface);
+  border-color: var(--tb-text-faint);
+}
+
+/* ─── Inputs ─────────────────────────────────────────────────── */
+.tb-input {
+  font-family: var(--tb-sans);
+  font-size: 13px;
+  background: var(--tb-bg);
+  border: 1px solid var(--tb-border-strong);
+  border-radius: 3px;
+  color: var(--tb-text);
+}
+
+.tb-input:focus {
+  outline: none;
+  border-color: var(--tb-accent);
+  box-shadow: 0 0 0 3px var(--tb-accent-soft);
+}
+
+.toolbox input[type='range'] {
+  accent-color: var(--tb-accent);
+}
+
+.toolbox input[type='checkbox'],
+.toolbox input[type='radio'] {
+  accent-color: var(--tb-accent);
+}
+
+/* ─── Divider ────────────────────────────────────────────────── */
+.tb-rule {
+  height: 1px;
+  background: var(--tb-border);
+}
+
+/* ─── Tool card ──────────────────────────────────────────────── */
+.tb-tool-card {
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.tb-tool-card:hover {
+  border-color: var(--tb-accent);
+  background: var(--tb-surface);
+}
+
+.tb-tool-card:hover .tb-tool-arrow {
+  transform: translateX(3px);
+}
+
+.tb-tool-arrow {
+  transition: transform 0.15s ease;
+}
+
+/* ─── Table ──────────────────────────────────────────────────── */
+.tb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tb-table th {
+  font-family: var(--tb-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tb-text-faint);
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--tb-border);
+  background: var(--tb-surface);
+}
+
+.tb-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--tb-border);
+}
+
+.tb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────── */
+.toolbox ::-webkit-scrollbar { width: 11px; height: 11px; }
+.toolbox ::-webkit-scrollbar-track { background: var(--tb-surface); }
+.toolbox ::-webkit-scrollbar-thumb {
+  background: var(--tb-border-strong);
+  border: 3px solid var(--tb-surface);
+  border-radius: 6px;
+}
+.toolbox ::-webkit-scrollbar-thumb:hover { background: var(--tb-text-faint); }
+
+.toolbox ::selection {
+  background: #cfe0f5;
+  color: var(--tb-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbox *, .toolbox *::before, .toolbox *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

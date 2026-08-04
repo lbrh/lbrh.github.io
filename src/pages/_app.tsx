@@ -1,8 +1,10 @@
 import '@/styles/globals.css';
+import '@/styles/toolbox.css';
 import type { AppProps } from 'next/app';
-import { Syne, Inter } from 'next/font/google';
+import { Syne, Inter, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 
 const Cursor = dynamic(() => import('@/components/Cursor'), { ssr: false });
 
@@ -20,8 +22,30 @@ const inter = Inter({
   display: 'swap',
 });
 
+/* Toolbox-only fonts — a neutral, corporate pairing kept separate from the
+   portfolio's display type so the tools read as plain working documents. */
+const plexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--tb-font-sans',
+  display: 'swap',
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--tb-font-mono',
+  display: 'swap',
+});
+
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const isToolbox = router.pathname.startsWith('/toolbox');
+
   useEffect(() => {
+    // Toolbox pages are app-like (canvases, panels) — smooth scroll hijacking
+    // the wheel there fights the tools rather than helping.
+    if (isToolbox) return;
     let cleanup: (() => void) | undefined;
 
     const initScroll = async () => {
@@ -52,11 +76,11 @@ export default function App({ Component, pageProps }: AppProps) {
 
     initScroll();
     return () => cleanup?.();
-  }, []);
+  }, [isToolbox]);
 
   return (
-    <div className={`${syne.variable} ${inter.variable}`}>
-      <Cursor />
+    <div className={`${syne.variable} ${inter.variable} ${plexSans.variable} ${plexMono.variable}`}>
+      {!isToolbox && <Cursor />}
       <Component {...pageProps} />
     </div>
   );
