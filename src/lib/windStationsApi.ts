@@ -1,10 +1,12 @@
 import type { WindStation } from '@/data/windStations';
+import type { LiveStationReading } from '@/lib/liveBom';
 
 export type StationReading = {
   time: string;
   wind: number;
   gust: number;
   dir: number;
+  source: 'bom' | 'model';
 };
 
 export type StationData = {
@@ -38,6 +40,7 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
       wind: weather.current.wind_speed_10m,
       gust: weather.current.wind_gusts_10m,
       dir: weather.current.wind_direction_10m,
+      source: 'model',
     },
     hourly: {
       time: weather.hourly.time,
@@ -45,6 +48,24 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
       gust: weather.hourly.wind_gusts_10m,
       dir: weather.hourly.wind_direction_10m,
       wave,
+    },
+  };
+}
+
+// Overlays a real BOM reading onto the current conditions when one is
+// available for the station, while keeping the Open-Meteo hourly array for
+// the 24-hour outlook chart (BOM's feed only carries a short recent history,
+// not a forecast).
+export function withLiveReading(data: StationData, live: LiveStationReading | undefined): StationData {
+  if (!live || !live.observedAt) return data;
+  return {
+    ...data,
+    current: {
+      time: live.observedAt,
+      wind: live.windKt,
+      gust: live.gustKt,
+      dir: live.dirDeg,
+      source: 'bom',
     },
   };
 }

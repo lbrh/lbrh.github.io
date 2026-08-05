@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
+import { fetchLiveBomData, resetLiveBomCache, type LiveShippingRow } from "@/lib/liveBom";
 
 const LAT = -37.8136;
 const LON = 144.9631;
@@ -23,10 +24,15 @@ type Result = {
   lightningHours: number;
   galeWarning: boolean;
   strongWarning: boolean;
+  stormWarning: boolean;
   recommendation: Recommendation;
   times: string[];
   windKnots: number[];
   gustsKnots: number[];
+  liveDataAvailable: boolean;
+  forecastText: string | null;
+  arrivals: LiveShippingRow[];
+  departures: LiveShippingRow[];
 };
 
 const KMH_TO_KT = 0.539957;
@@ -96,6 +102,42 @@ function WindChart({
   );
 }
 
+function ShippingTable({ title, rows }: { title: string; rows: LiveShippingRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <div>
+        <h4 className="tb-display mb-1 mt-4 text-[13px]">{title}</h4>
+        <p className="text-[13px] text-[var(--tb-text-muted)]">None in the next 12 hours</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <h4 className="tb-display mb-1 mt-4 text-[13px]">{title}</h4>
+      <table className="tb-table">
+        <thead>
+          <tr>
+            <th>Ship</th>
+            <th>Datetime</th>
+            <th>From</th>
+            <th>To</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={`${r.ship}-${i}`}>
+              <td>{r.ship}</td>
+              <td>{r.datetime}</td>
+              <td>{r.from}</td>
+              <td>{r.to}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function AutoRisk() {
   const [eventName, setEventName] = useState("");
   const [raceOfficer, setRaceOfficer] = useState("");
@@ -104,6 +146,7 @@ export default function AutoRisk() {
   const [visibility, setVisibility] = useState("good");
   const [galeWarning, setGaleWarning] = useState(false);
   const [strongWarning, setStrongWarning] = useState(false);
+  const [liveWarningNote, setLiveWarningNote] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -122,9 +165,12 @@ export default function AutoRisk() {
         `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}` +
         `&daily=wave_height_max&timezone=Australia%2FSydney&forecast_days=1`;
 
-      const [fRes, wRes] = await Promise.all([
+      resetLiveBomCache();
+
+      const [fRes, wRes, live] = await Promise.all([
         fetch(forecastUrl),
         fetch(waveUrl).catch(() => null),
+        fetchLiveBomData(),
       ]);
       if (!fRes.ok) throw new Error(`Forecast API returned ${fRes.status}`);
       const weather = await fRes.json();
@@ -134,6 +180,30 @@ export default function AutoRisk() {
         const wave = await wRes.json();
         waveHeight = wave?.daily?.wave_height_max?.[0] ?? 0;
       }
+
+      const liveStrong = live?.warnings.strong ?? false;
+      const liveGale = live?.warnings.gale ?? false;
+      const liveStorm = live?.warnings.storm ?? false;
+
+      // BOM warnings only ever turn a checkbox ON automatically — a manual
+      // check is never silently cleared, so a live-feed miss can't quietly
+      // downgrade a warning the user has already flagged.
+      const effectiveStrong = strongWarning || liveStrong;
+      const effectiveGale = galeWarning || liveGale;
+      if (liveStrong) setStrongWarning(true);
+      if (liveGale) setGaleWarning(true);
+
+      setLiveWarningNote(
+        live
+          ? [
+              `BOM live check (Port Phillip): `,
+              liveStorm ? "STORM FORCE WARNING. " : "",
+              liveGale ? "Gale warning. " : "",
+              liveStrong ? "Strong wind warning. " : "",
+              !liveStorm && !liveGale && !liveStrong ? "No warnings current." : "",
+            ].join("")
+          : "BOM live data unavailable — using manual entries only.",
+      );
 
       const times: string[] = weather.hourly.time;
       const temps: number[] = weather.hourly.temperature_2m;
@@ -155,9 +225,9 @@ export default function AutoRisk() {
       const maxUv = Math.max(...uv);
 
       let recommendation: Recommendation;
-      if (galeWarning || maxWind > 35 || lightningHours > 3 || waveHeight > 3) {
+      if (effectiveGale || liveStorm || maxWind > 35 || lightningHours > 3 || waveHeight > 3) {
         recommendation = "NO";
-      } else if (strongWarning || maxWind > 25 || lightningHours > 0) {
+      } else if (effectiveStrong || maxWind > 25 || lightningHours > 0) {
         recommendation = "MAYBE";
       } else {
         recommendation = "YES";
@@ -184,12 +254,17 @@ export default function AutoRisk() {
         maxUv,
         waveHeight,
         lightningHours,
-        galeWarning,
-        strongWarning,
+        galeWarning: effectiveGale,
+        strongWarning: effectiveStrong,
+        stormWarning: liveStorm,
         recommendation,
         times,
         windKnots,
         gustsKnots,
+        liveDataAvailable: !!live,
+        forecastText: live?.forecastText ?? null,
+        arrivals: live?.shipping.arrivals ?? [],
+        departures: live?.shipping.departures ?? [],
       });
     } catch (e) {
       setError(
@@ -219,9 +294,10 @@ export default function AutoRisk() {
       </h1>
       <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Pulls live weather and marine forecasts for Port Phillip and produces a go / no-go
-        recommendation. Gale and strong-wind warnings are entered manually, since the Bureau
-        of Meteorology feed and Ports Victoria ship movements can&apos;t be fetched directly
-        from a browser.
+        recommendation. Gale, storm and strong-wind warnings are checked automatically against
+        a BOM bulletin refreshed every 10 minutes, alongside the BOM forecast text and Ports
+        Victoria shipping movements. The checkboxes below stay editable in case that feed is
+        unavailable or lags behind — they auto-tick on but are never auto-cleared.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
@@ -292,6 +368,10 @@ export default function AutoRisk() {
           {loading ? "Fetching forecast…" : "Generate Assessment"}
         </button>
 
+        {liveWarningNote && (
+          <p className="tb-mono mt-3 text-xs text-[var(--tb-text-muted)]">{liveWarningNote}</p>
+        )}
+
         {error && (
           <p className="mt-4 border border-[var(--tb-danger)]/40 p-3 text-sm text-[var(--tb-danger)]">
             {error}
@@ -328,6 +408,7 @@ export default function AutoRisk() {
                   `Max Temp: ${result.maxTemp}°C | Min Temp: ${result.minTemp}°C | Max Wind: ${result.maxWind} kt | Min Gust: ${result.minGust} kt | Max UV: ${result.maxUv}`,
                 ],
                 ["Gale Warning", result.galeWarning ? "YES" : "NO"],
+                ["Storm Force Warning", result.stormWarning ? "YES" : "NO"],
                 ["Strong Wind Warning", result.strongWarning ? "YES" : "NO"],
                 ["Wave Height (m)", String(result.waveHeight)],
                 ["Air Quality", result.airQuality],
@@ -344,6 +425,34 @@ export default function AutoRisk() {
 
           <h3 className="tb-display mb-2 mt-6 text-[15px]">Wind / Gust Forecast</h3>
           <WindChart times={result.times} wind={result.windKnots} gusts={result.gustsKnots} />
+
+          <h3 className="tb-display mb-2 mt-6 text-[15px]">BOM Forecast — Port Phillip</h3>
+          {result.forecastText ? (
+            <pre className="tb-mono max-h-72 overflow-y-auto whitespace-pre-wrap border-l-2 border-[var(--tb-border-strong)] pl-3 text-[11px] leading-relaxed">
+              {result.forecastText}
+            </pre>
+          ) : (
+            <p className="text-[13px] text-[var(--tb-text-muted)]">
+              BOM forecast text unavailable this run — the live data feed may not have run yet.
+            </p>
+          )}
+
+          <h3 className="tb-display mb-1 mt-6 text-[15px]">Shipping Movements</h3>
+          <ShippingTable title="Expected Arrivals" rows={result.arrivals} />
+          <ShippingTable title="Expected Departures" rows={result.departures} />
+
+          <div className="tb-mono mt-4 space-y-0.5 text-[11px] text-[var(--tb-text-faint)]">
+            <p>*Note: time listed is at Fawkner Beacon for arrivals, and at berth for departures.</p>
+            <p>Time between Fawkner Beacon and berth is ~1 hour.</p>
+            <p>Webb Dock, Station Pier and Gellibrand Pier are on the bay itself.</p>
+            <p>Swanson, Appleton, Victoria Dock, Holden Dock and South Wharf are up the river.</p>
+            <p>If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.</p>
+            {!result.liveDataAvailable && (
+              <p className="text-[var(--tb-danger)]">
+                Live BOM/shipping data was unavailable this run — warnings above reflect manual entry only.
+              </p>
+            )}
+          </div>
         </div>
       )}
 

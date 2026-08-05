@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
 import { formatDirection } from '@/lib/compass';
-import { fetchStationWind, type StationData } from '@/lib/windStationsApi';
+import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
+import { fetchLiveBomData, resetLiveBomCache } from '@/lib/liveBom';
 
 const REFRESH_MS = 10 * 60 * 1000;
 
@@ -23,9 +24,15 @@ export default function WindSummary() {
     });
     setStates(initial);
 
+    resetLiveBomCache();
+    const live = fetchLiveBomData();
+
     WIND_STATIONS.forEach((station) => {
-      fetchStationWind(station)
-        .then((data) => setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data } })))
+      Promise.all([fetchStationWind(station), live])
+        .then(([data, liveData]) => {
+          const merged = withLiveReading(data, liveData?.stations[station.id]);
+          setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data: merged } }));
+        })
         .catch(() => setStates((prev) => ({ ...prev, [station.id]: { status: 'error' } })));
     });
     setLastRefreshed(new Date());
@@ -63,7 +70,17 @@ export default function WindSummary() {
               className="tb-card tb-tool-card block p-3.5 text-left"
               style={{ borderLeftWidth: 4, borderLeftColor: band ? BAND_COLOUR[band] : 'var(--tb-border)' }}
             >
-              <span className="tb-eyebrow block truncate">{station.name}</span>
+              <div className="flex items-center justify-between gap-1">
+                <span className="tb-eyebrow truncate">{station.name}</span>
+                {state?.status === 'ok' && (
+                  <span
+                    className="tb-mono shrink-0 text-[9px] font-medium uppercase tracking-wide"
+                    style={{ color: state.data.current.source === 'bom' ? 'var(--tb-ok)' : 'var(--tb-text-faint)' }}
+                  >
+                    {state.data.current.source === 'bom' ? 'Live' : 'Modelled'}
+                  </span>
+                )}
+              </div>
 
               {state?.status === 'ok' ? (
                 <>

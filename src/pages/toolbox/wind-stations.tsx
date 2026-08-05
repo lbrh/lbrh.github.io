@@ -5,7 +5,8 @@ import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
 import { formatDirection } from '@/lib/compass';
-import { fetchStationWind, type StationData } from '@/lib/windStationsApi';
+import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
+import { fetchLiveBomData, resetLiveBomCache } from '@/lib/liveBom';
 import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
@@ -100,9 +101,15 @@ export default function WindStations() {
     });
     setStates(initial);
 
+    resetLiveBomCache();
+    const live = fetchLiveBomData();
+
     WIND_STATIONS.forEach((station) => {
-      fetchStationWind(station)
-        .then((data) => setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data } })))
+      Promise.all([fetchStationWind(station), live])
+        .then(([data, liveData]) => {
+          const merged = withLiveReading(data, liveData?.stations[station.id]);
+          setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data: merged } }));
+        })
         .catch((e) =>
           setStates((prev) => ({
             ...prev,
@@ -168,8 +175,9 @@ export default function WindStations() {
             className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]"
             style={{ animationDelay: '0.04s' }}
           >
-            Live modelled wind speed, gusts and direction at six points spread across Port Phillip,
-            colour-coded by strength. Select a card or a marker on the map for its full 24-hour forecast.
+            Wind speed, gusts and direction at six points spread across Port Phillip, colour-coded by
+            strength — real BOM station readings where one exists, modelled estimates elsewhere. Select a
+            card or a marker on the map for its full 24-hour forecast.
           </p>
         </div>
         <div className="tb-anim-rise flex flex-col items-end gap-1" style={{ animationDelay: '0.04s' }}>
@@ -203,7 +211,17 @@ export default function WindStations() {
                 borderLeftColor: band ? BAND_COLOUR[band] : 'var(--tb-border)',
               }}
             >
-              <span className="tb-eyebrow block truncate">{station.name}</span>
+              <div className="flex items-center justify-between gap-1">
+                <span className="tb-eyebrow truncate">{station.name}</span>
+                {state?.status === 'ok' && (
+                  <span
+                    className="tb-mono shrink-0 text-[9px] font-medium uppercase tracking-wide"
+                    style={{ color: state.data.current.source === 'bom' ? 'var(--tb-ok)' : 'var(--tb-text-faint)' }}
+                  >
+                    {state.data.current.source === 'bom' ? 'Live' : 'Modelled'}
+                  </span>
+                )}
+              </div>
 
               {state?.status === 'ok' ? (
                 <>
@@ -253,7 +271,19 @@ export default function WindStations() {
       <div className="tb-anim-rise tb-card mt-6 p-6" style={{ animationDelay: '0.12s' }}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
-            <h2 className="tb-display text-[18px]">{selectedStation.name}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="tb-display text-[18px]">{selectedStation.name}</h2>
+              {selectedState?.status === 'ok' && (
+                <span
+                  className="tb-mono text-[10px] font-medium uppercase tracking-wide"
+                  style={{
+                    color: selectedState.data.current.source === 'bom' ? 'var(--tb-ok)' : 'var(--tb-text-faint)',
+                  }}
+                >
+                  {selectedState.data.current.source === 'bom' ? 'Live BOM station' : 'Modelled'}
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-[13px] text-[var(--tb-text-muted)]">{selectedStation.description}</p>
           </div>
           <span className="tb-mono text-[11px] text-[var(--tb-text-faint)]">
@@ -295,8 +325,11 @@ export default function WindStations() {
             <DetailChart hourly={selectedState.data.hourly} fromIndex={selectedFromIndex} />
 
             <p className="tb-mono mt-3 text-[11px] text-[var(--tb-text-faint)]">
-              Last updated {selectedState.data.current.time.replace('T', ' ')} · modelled data, not a direct
-              BOM station feed
+              Last updated {selectedState.data.current.time.replace('T', ' ')} ·{' '}
+              {selectedState.data.current.source === 'bom'
+                ? 'live reading from a BOM automatic weather station'
+                : 'modelled estimate, not a direct BOM station feed'}
+              . 24-hour outlook is always modelled.
             </p>
           </>
         ) : selectedState?.status === 'error' ? (
