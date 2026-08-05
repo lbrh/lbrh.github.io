@@ -31,7 +31,6 @@ type Result = {
   gustsKnots: number[];
   liveDataAvailable: boolean;
   forecastText: string | null;
-  warningsText: string | null;
   arrivals: LiveShippingRow[];
   departures: LiveShippingRow[];
 };
@@ -145,6 +144,7 @@ export default function AutoRisk() {
   const [flagOfficer, setFlagOfficer] = useState("");
   const [airQuality, setAirQuality] = useState("good");
   const [visibility, setVisibility] = useState("good");
+  const [includeShipping, setIncludeShipping] = useState(true);
   const [liveWarningNote, setLiveWarningNote] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -254,7 +254,6 @@ export default function AutoRisk() {
         gustsKnots,
         liveDataAvailable: !!live,
         forecastText: live?.forecastText ?? null,
-        warningsText: live?.warnings.rawText ?? null,
         arrivals: live?.shipping.arrivals ?? [],
         departures: live?.shipping.departures ?? [],
       });
@@ -281,19 +280,18 @@ export default function AutoRisk() {
       title="Risk Assessment"
       description="Generate a sailing race-day risk assessment for Port Phillip from live weather and marine forecasts."
     >
-      <h1 className="tb-display tb-anim-rise text-[26px] leading-tight">
+      <h1 className="no-print tb-display tb-anim-rise text-[26px] leading-tight">
         Risk Assessment
       </h1>
-      <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
+      <p className="no-print tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Pulls live weather and marine forecasts for Port Phillip and produces a go / no-go
         recommendation. Gale, storm and strong-wind warnings are read directly from the BOM
-        Marine Wind Warning Summary, refreshed every 10 minutes — the same feed the report
-        quotes in full below, alongside the BOM forecast text and Ports Victoria shipping
-        movements. If that feed is unavailable, the report flags it clearly rather than
-        silently assuming no warning is current.
+        Marine Wind Warning Summary, refreshed every 10 minutes, alongside the BOM forecast
+        text and Ports Victoria shipping movements. If that feed is unavailable, the report
+        flags it clearly rather than silently assuming no warning is current.
       </p>
 
-      <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
+      <div className="no-print tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className="tb-eyebrow">Event Name</span>
@@ -345,6 +343,15 @@ export default function AutoRisk() {
             </select>
           </label>
         </div>
+
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={includeShipping}
+            onChange={(e) => setIncludeShipping(e.target.checked)}
+          />
+          Include shipping movements in report
+        </label>
 
         <button onClick={generate} disabled={loading} className="tb-btn mt-6 px-4 py-2 text-sm">
           {loading ? "Fetching forecast…" : "Generate Assessment"}
@@ -413,17 +420,6 @@ export default function AutoRisk() {
             </tbody>
           </table>
 
-          <h3 className="tb-display mb-2 mt-6 text-[15px]">BOM Marine Wind Warning Summary</h3>
-          {result.warningsText ? (
-            <pre className="tb-mono max-h-72 overflow-y-auto whitespace-pre-wrap border-l-2 border-[var(--tb-border-strong)] pl-3 text-[11px] leading-relaxed">
-              {result.warningsText}
-            </pre>
-          ) : (
-            <p className="text-[13px] text-[var(--tb-text-muted)]">
-              BOM warning summary unavailable this run — the live data feed may not have run yet.
-            </p>
-          )}
-
           <h3 className="tb-display mb-2 mt-6 text-[15px]">Wind / Gust Forecast</h3>
           <WindChart times={result.times} wind={result.windKnots} gusts={result.gustsKnots} />
 
@@ -438,26 +434,40 @@ export default function AutoRisk() {
             </p>
           )}
 
-          <h3 className="tb-display mb-1 mt-6 text-[15px]">Shipping Movements</h3>
-          <ShippingTable title="Expected Arrivals" rows={result.arrivals} />
-          <ShippingTable title="Expected Departures" rows={result.departures} />
+          {includeShipping && (
+            <>
+              <h3 className="tb-display mb-1 mt-6 text-[15px]">Shipping Movements</h3>
+              <ShippingTable title="Expected Arrivals" rows={result.arrivals} />
+              <ShippingTable title="Expected Departures" rows={result.departures} />
 
-          <div className="tb-mono mt-4 space-y-0.5 text-[11px] text-[var(--tb-text-faint)]">
-            <p>*Note: time listed is at Fawkner Beacon for arrivals, and at berth for departures.</p>
-            <p>Time between Fawkner Beacon and berth is ~1 hour.</p>
-            <p>Webb Dock, Station Pier and Gellibrand Pier are on the bay itself.</p>
-            <p>Swanson, Appleton, Victoria Dock, Holden Dock and South Wharf are up the river.</p>
-            <p>If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.</p>
-          </div>
+              <div className="tb-mono mt-4 space-y-0.5 text-[11px] text-[var(--tb-text-faint)]">
+                <p>*Note: time listed is at Fawkner Beacon for arrivals, and at berth for departures.</p>
+                <p>Time between Fawkner Beacon and berth is ~1 hour.</p>
+                <p>Webb Dock, Station Pier and Gellibrand Pier are on the bay itself.</p>
+                <p>Swanson, Appleton, Victoria Dock, Holden Dock and South Wharf are up the river.</p>
+              </div>
+            </>
+          )}
+
+          <p className="tb-mono mt-4 text-[11px] text-[var(--tb-text-faint)]">
+            If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.
+          </p>
         </div>
       )}
 
       <style jsx global>{`
         @media print {
-          body * { visibility: hidden; }
-          #risk-report, #risk-report * { visibility: visible; }
-          #risk-report { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
+          /* display:none removes these from flow entirely, rather than the
+             old visibility:hidden + position:absolute trick — that combo
+             fought .toolbox's position:relative/min-height:100vh and would
+             cut #risk-report off after the first page in Chrome. Leaving
+             #risk-report in normal document flow lets it paginate across
+             as many pages as it needs. */
+          .toolbox > header,
+          .toolbox > footer,
           .no-print { display: none !important; }
+          #risk-report { margin: 0; }
+          #risk-report pre { max-height: none !important; overflow: visible !important; }
         }
       `}</style>
     </ToolboxShell>
