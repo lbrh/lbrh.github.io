@@ -1,0 +1,16 @@
+# Reference config for deploying bom-worker.js with the Wrangler CLI
+# (`npx wrangler deploy` from this directory), if you ever have Node
+# available. Not required for a dashboard-based deploy — the dashboard
+# lets you paste the worker source directly and add the KV binding and
+# Cron Trigger through the UI instead.
+
+name = "bom-live-data"
+main = "bom-worker.js"
+compatibility_date = "2024-09-01"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[[kv_namespaces]]
+binding = "BOM_DATA"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

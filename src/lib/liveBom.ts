@@ -1,7 +1,12 @@
-// Published every ~10 minutes by .github/workflows/fetch-bom-data.yml to the
-// 'data' branch (never main) and read here straight from GitHub's raw content
-// host, which serves CORS-enabled responses — no backend required.
-const LIVE_DATA_URL = 'https://raw.githubusercontent.com/lbrh/lbrh.github.io/data/live.json';
+// Refreshed every ~10 minutes by cloudflare/bom-worker.js on a Cron
+// Trigger and served with CORS headers straight from the edge — no
+// backend of ours involved. (BOM returns 403 to every request from
+// GitHub Actions' Azure IP ranges, which is why this isn't a GitHub
+// Pages / raw.githubusercontent.com file like the rest of the site.)
+//
+// REPLACE with your deployed Worker's URL, e.g.
+// "https://bom-live-data.<your-subdomain>.workers.dev".
+const LIVE_DATA_URL = 'https://bom-live-data.YOUR-SUBDOMAIN.workers.dev';
 
 export type LiveStationReading = {
   windKt: number;
@@ -38,7 +43,7 @@ let cache: Promise<LiveBomData | null> | null = null;
 
 async function fetchLive(): Promise<LiveBomData | null> {
   try {
-    // Cache-bust so GitHub's CDN doesn't hand back a stale cached response.
+    // Cache-bust so neither the browser nor an edge cache hands back a stale response.
     const res = await fetch(`${LIVE_DATA_URL}?t=${Date.now()}`);
     if (!res.ok) return null;
     return (await res.json()) as LiveBomData;
