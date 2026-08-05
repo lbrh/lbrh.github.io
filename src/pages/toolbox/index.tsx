@@ -58,6 +58,14 @@ const TOOLS: Tool[] = [
       'Generate a high-resolution QR code for booking links, crew registration or race notices.',
     tags: ['Utility'],
   },
+  {
+    n: '07',
+    title: 'Wind Stations',
+    href: '/toolbox/wind-stations',
+    blurb:
+      'Current wind speed and gusts at six reference points around Port Phillip, with a detailed 24-hour view for each.',
+    tags: ['Live data', 'Mapping'],
+  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
@@ -99,7 +107,7 @@ export default function ToolboxIndex() {
         <title>Toolbox · Liam Robinson Hounsell</title>
         <meta
           name="description"
-          content="Six browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets and QR codes."
+          content="Seven browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes and wind stations."
         />
         <meta name="theme-color" content="#ffffff" />
       </Head>
