@@ -37,10 +37,10 @@ const TOOLS: Tool[] = [
   },
   {
     n: '04',
-    title: 'Course Maker',
+    title: 'W/L Designer',
     href: '/toolbox/course-maker',
     blurb:
-      'Build laid-mark race course diagrams on an infinite canvas and export them to PNG, SVG or PDF for the sailing instructions.',
+      'Build windward-leeward race course diagrams on an infinite canvas and export them to PNG, SVG or PDF for the sailing instructions.',
     tags: ['Diagramming', 'Export'],
   },
   {
@@ -53,10 +53,10 @@ const TOOLS: Tool[] = [
   },
   {
     n: '06',
-    title: 'Course Planner',
+    title: 'Mark Course Planner',
     href: '/toolbox/course-planner',
     blurb:
-      'Lay a long-distance course by selecting marks in order, then total each leg in nautical miles and export the schedule as CSV.',
+      'Lay a fixed-mark course by selecting marks in order, then total each leg in nautical miles and export the schedule as CSV.',
     tags: ['Mapping', 'CSV'],
   },
 ];
