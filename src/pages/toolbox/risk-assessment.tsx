@@ -31,6 +31,7 @@ type Result = {
   gustsKnots: number[];
   liveDataAvailable: boolean;
   forecastText: string | null;
+  warningsText: string | null;
   arrivals: LiveShippingRow[];
   departures: LiveShippingRow[];
 };
@@ -144,8 +145,6 @@ export default function AutoRisk() {
   const [flagOfficer, setFlagOfficer] = useState("");
   const [airQuality, setAirQuality] = useState("good");
   const [visibility, setVisibility] = useState("good");
-  const [galeWarning, setGaleWarning] = useState(false);
-  const [strongWarning, setStrongWarning] = useState(false);
   const [liveWarningNote, setLiveWarningNote] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -185,14 +184,6 @@ export default function AutoRisk() {
       const liveGale = live?.warnings.gale ?? false;
       const liveStorm = live?.warnings.storm ?? false;
 
-      // BOM warnings only ever turn a checkbox ON automatically — a manual
-      // check is never silently cleared, so a live-feed miss can't quietly
-      // downgrade a warning the user has already flagged.
-      const effectiveStrong = strongWarning || liveStrong;
-      const effectiveGale = galeWarning || liveGale;
-      if (liveStrong) setStrongWarning(true);
-      if (liveGale) setGaleWarning(true);
-
       setLiveWarningNote(
         live
           ? [
@@ -202,7 +193,7 @@ export default function AutoRisk() {
               liveStrong ? "Strong wind warning. " : "",
               !liveStorm && !liveGale && !liveStrong ? "No warnings current." : "",
             ].join("")
-          : "BOM live data unavailable — using manual entries only.",
+          : "BOM live data unavailable — warning status could not be verified this run.",
       );
 
       const times: string[] = weather.hourly.time;
@@ -225,9 +216,9 @@ export default function AutoRisk() {
       const maxUv = Math.max(...uv);
 
       let recommendation: Recommendation;
-      if (effectiveGale || liveStorm || maxWind > 35 || lightningHours > 3 || waveHeight > 3) {
+      if (liveGale || liveStorm || maxWind > 35 || lightningHours > 3 || waveHeight > 3) {
         recommendation = "NO";
-      } else if (effectiveStrong || maxWind > 25 || lightningHours > 0) {
+      } else if (liveStrong || maxWind > 25 || lightningHours > 0) {
         recommendation = "MAYBE";
       } else {
         recommendation = "YES";
@@ -254,8 +245,8 @@ export default function AutoRisk() {
         maxUv,
         waveHeight,
         lightningHours,
-        galeWarning: effectiveGale,
-        strongWarning: effectiveStrong,
+        galeWarning: liveGale,
+        strongWarning: liveStrong,
         stormWarning: liveStorm,
         recommendation,
         times,
@@ -263,6 +254,7 @@ export default function AutoRisk() {
         gustsKnots,
         liveDataAvailable: !!live,
         forecastText: live?.forecastText ?? null,
+        warningsText: live?.warnings.rawText ?? null,
         arrivals: live?.shipping.arrivals ?? [],
         departures: live?.shipping.departures ?? [],
       });
@@ -294,10 +286,11 @@ export default function AutoRisk() {
       </h1>
       <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Pulls live weather and marine forecasts for Port Phillip and produces a go / no-go
-        recommendation. Gale, storm and strong-wind warnings are checked automatically against
-        a BOM bulletin refreshed every 10 minutes, alongside the BOM forecast text and Ports
-        Victoria shipping movements. The checkboxes below stay editable in case that feed is
-        unavailable or lags behind — they auto-tick on but are never auto-cleared.
+        recommendation. Gale, storm and strong-wind warnings are read directly from the BOM
+        Marine Wind Warning Summary, refreshed every 10 minutes — the same feed the report
+        quotes in full below, alongside the BOM forecast text and Ports Victoria shipping
+        movements. If that feed is unavailable, the report flags it clearly rather than
+        silently assuming no warning is current.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
@@ -353,17 +346,6 @@ export default function AutoRisk() {
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-6">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={strongWarning} onChange={(e) => setStrongWarning(e.target.checked)} />
-            Strong wind warning (Port Phillip)
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={galeWarning} onChange={(e) => setGaleWarning(e.target.checked)} />
-            Gale warning (Port Phillip)
-          </label>
-        </div>
-
         <button onClick={generate} disabled={loading} className="tb-btn mt-6 px-4 py-2 text-sm">
           {loading ? "Fetching forecast…" : "Generate Assessment"}
         </button>
@@ -395,6 +377,14 @@ export default function AutoRisk() {
             Recommendation: {result.recommendation} to racing
           </div>
 
+          {!result.liveDataAvailable && (
+            <div className="mt-4 border border-[var(--tb-danger)]/40 bg-[var(--tb-danger)]/5 p-3 text-sm text-[var(--tb-danger)]">
+              <strong>Live BOM data was unavailable this run.</strong> Wind warning status could not be
+              verified automatically — check the BOM Marine Wind Warning Summary for Port Phillip directly
+              before making a decision.
+            </div>
+          )}
+
           <table className="tb-table mt-5">
             <tbody>
               {[
@@ -423,6 +413,17 @@ export default function AutoRisk() {
             </tbody>
           </table>
 
+          <h3 className="tb-display mb-2 mt-6 text-[15px]">BOM Marine Wind Warning Summary</h3>
+          {result.warningsText ? (
+            <pre className="tb-mono max-h-72 overflow-y-auto whitespace-pre-wrap border-l-2 border-[var(--tb-border-strong)] pl-3 text-[11px] leading-relaxed">
+              {result.warningsText}
+            </pre>
+          ) : (
+            <p className="text-[13px] text-[var(--tb-text-muted)]">
+              BOM warning summary unavailable this run — the live data feed may not have run yet.
+            </p>
+          )}
+
           <h3 className="tb-display mb-2 mt-6 text-[15px]">Wind / Gust Forecast</h3>
           <WindChart times={result.times} wind={result.windKnots} gusts={result.gustsKnots} />
 
@@ -447,11 +448,6 @@ export default function AutoRisk() {
             <p>Webb Dock, Station Pier and Gellibrand Pier are on the bay itself.</p>
             <p>Swanson, Appleton, Victoria Dock, Holden Dock and South Wharf are up the river.</p>
             <p>If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.</p>
-            {!result.liveDataAvailable && (
-              <p className="text-[var(--tb-danger)]">
-                Live BOM/shipping data was unavailable this run — warnings above reflect manual entry only.
-              </p>
-            )}
           </div>
         </div>
       )}
