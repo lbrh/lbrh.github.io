@@ -13,14 +13,6 @@ type Tool = {
 const TOOLS: Tool[] = [
   {
     n: '01',
-    title: 'Course Maker',
-    href: '/toolbox/course-maker',
-    blurb:
-      'Build laid-mark race course diagrams on an infinite canvas and export them to PNG, SVG or PDF for the sailing instructions.',
-    tags: ['Diagramming', 'Export'],
-  },
-  {
-    n: '02',
     title: 'Risk Assessment',
     href: '/toolbox/risk-assessment',
     blurb:
@@ -28,23 +20,7 @@ const TOOLS: Tool[] = [
     tags: ['Live data', 'Print'],
   },
   {
-    n: '03',
-    title: 'Course Planner',
-    href: '/toolbox/course-planner',
-    blurb:
-      'Lay a long-distance course by selecting marks in order, then total each leg in nautical miles and export the schedule as CSV.',
-    tags: ['Mapping', 'CSV'],
-  },
-  {
-    n: '04',
-    title: 'Bay Marks',
-    href: '/toolbox/bay-marks',
-    blurb:
-      'A searchable reference chart of every navigation mark in Port Phillip Bay, filterable by category with full position detail.',
-    tags: ['Reference', 'Mapping'],
-  },
-  {
-    n: '05',
+    n: '02',
     title: 'Start Sheets',
     href: '/toolbox/start-sheets',
     blurb:
@@ -52,12 +28,36 @@ const TOOLS: Tool[] = [
     tags: ['CSV', 'Print'],
   },
   {
-    n: '06',
+    n: '03',
     title: 'QR Code',
     href: '/toolbox/qr-code',
     blurb:
       'Generate a high-resolution QR code for booking links, crew registration or race notices.',
     tags: ['Utility'],
+  },
+  {
+    n: '04',
+    title: 'Course Maker',
+    href: '/toolbox/course-maker',
+    blurb:
+      'Build laid-mark race course diagrams on an infinite canvas and export them to PNG, SVG or PDF for the sailing instructions.',
+    tags: ['Diagramming', 'Export'],
+  },
+  {
+    n: '05',
+    title: 'Bay Marks',
+    href: '/toolbox/bay-marks',
+    blurb:
+      'A searchable reference chart of every navigation mark in Port Phillip Bay, filterable by category with full position detail.',
+    tags: ['Reference', 'Mapping'],
+  },
+  {
+    n: '06',
+    title: 'Course Planner',
+    href: '/toolbox/course-planner',
+    blurb:
+      'Lay a long-distance course by selecting marks in order, then total each leg in nautical miles and export the schedule as CSV.',
+    tags: ['Mapping', 'CSV'],
   },
 ];
 
@@ -154,7 +154,9 @@ export default function ToolboxIndex() {
           <p className="text-[12px] text-[var(--tb-text-muted)]">
             Runs entirely in your browser. No data is uploaded or stored.
           </p>
-          <p className="text-[12px] text-[var(--tb-text-faint)]">Reference only — not for navigation.</p>
+          <p className="text-[12px] text-[var(--tb-text-faint)]">
+            Reference only — not for navigation. Not official weather data; check BOM to confirm.
+          </p>
         </div>
       </footer>
     </div>
