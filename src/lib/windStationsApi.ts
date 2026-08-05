@@ -1,5 +1,5 @@
 import type { WindStation } from '@/data/windStations';
-import type { LiveStationReading } from '@/lib/liveBom';
+import type { LiveHistoryPoint, LiveStationReading } from '@/lib/liveBom';
 
 export type StationReading = {
   time: string;
@@ -12,6 +12,9 @@ export type StationReading = {
 export type StationData = {
   current: StationReading;
   hourly: { time: string[]; wind: number[]; gust: number[]; dir: number[]; wave: number[] };
+  // Real BOM observations for the last ~24h, oldest first. Null when no live
+  // BOM feed is available for this station (falls back to modelled-only).
+  bomHistory: LiveHistoryPoint[] | null;
 };
 
 export async function fetchStationWind(station: WindStation): Promise<StationData> {
@@ -49,6 +52,7 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
       dir: weather.hourly.wind_direction_10m,
       wave,
     },
+    bomHistory: null,
   };
 }
 
@@ -67,5 +71,6 @@ export function withLiveReading(data: StationData, live: LiveStationReading | un
       dir: live.dirDeg,
       source: 'bom',
     },
+    bomHistory: live.history ?? null,
   };
 }

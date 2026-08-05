@@ -108,21 +108,45 @@ function parseBomLocalTime(raw) {
 // BOM/Ports Victoria outage doesn't stop the rest of the payload.
 // ---------------------------------------------------------------------
 
+const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 async function fetchStation(product, wmo) {
   const url = `https://www.bom.gov.au/fwo/${product}/${product}.${wmo}.json`;
   try {
     const res = await fetch(url, { headers: HEADERS });
     if (!res.ok) return null;
     const json = await res.json();
-    const latest = json?.observations?.data?.[0];
-    if (!latest) return null;
+    const entries = json?.observations?.data;
+    if (!Array.isArray(entries) || entries.length === 0) return null;
 
+    const latest = entries[0];
     const windKt = latest.wind_spd_kt;
     const gustKt = latest.gust_kt;
     const compass = (latest.wind_dir || '').toUpperCase();
     const dirDeg = COMPASS_DEG[compass];
 
     if (windKt == null || dirDeg == null) return null;
+
+    // BOM's "data" array is a short rolling history, newest first. Keep
+    // whatever falls in the last 24h for the historical chart, reversed
+    // to oldest-first so a chart can plot it left-to-right.
+    const cutoff = Date.now() - HISTORY_WINDOW_MS;
+    const history = [];
+    for (const entry of entries) {
+      const eWindKt = entry.wind_spd_kt;
+      if (eWindKt == null) continue;
+      const eTime = parseBomLocalTime(entry.local_date_time_full);
+      if (!eTime || new Date(eTime).getTime() < cutoff) continue;
+
+      const eCompass = (entry.wind_dir || '').toUpperCase();
+      history.push({
+        time: eTime,
+        windKt: eWindKt,
+        gustKt: entry.gust_kt != null ? entry.gust_kt : eWindKt,
+        dirDeg: COMPASS_DEG[eCompass] ?? null,
+      });
+    }
+    history.reverse();
 
     return {
       windKt,
@@ -131,6 +155,7 @@ async function fetchStation(product, wmo) {
       dirDeg,
       airTemp: latest.air_temp ?? null,
       observedAt: parseBomLocalTime(latest.local_date_time_full),
+      history,
     };
   } catch (e) {
     console.error('station fetch failed', product, wmo, e);

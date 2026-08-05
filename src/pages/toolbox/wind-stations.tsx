@@ -31,15 +31,35 @@ function WindArrow({ dir, size = 22 }: { dir: number; size?: number }) {
   );
 }
 
-function DetailChart({ hourly, fromIndex }: { hourly: StationData['hourly']; fromIndex: number }) {
-  const times = hourly.time.slice(fromIndex, fromIndex + 24);
-  const wind = hourly.wind.slice(fromIndex, fromIndex + 24);
-  const gusts = hourly.gust.slice(fromIndex, fromIndex + 24);
-  if (times.length === 0) return null;
+function evenIndices(length: number, count: number): number[] {
+  if (length <= 1) return length === 1 ? [0] : [];
+  const n = Math.min(count, length);
+  return Array.from({ length: n }, (_, k) => Math.round((k / (n - 1)) * (length - 1)));
+}
 
-  const W = 720;
-  const H = 260;
-  const pad = { top: 16, right: 16, bottom: 42, left: 34 };
+// Compact chart used for both the historical (BOM) and predicted (modelled)
+// panels — plain arrays rather than the hourly/fromIndex slicing style so
+// either data source can feed it directly. Direction is drawn as small
+// rotated arrows at evenly spaced points rather than a line, since a wind
+// bearing wraps at 360° and doesn't plot sensibly as a continuous value.
+function WindChart({
+  times,
+  wind,
+  gusts,
+  dirs,
+}: {
+  times: string[];
+  wind: number[];
+  gusts: number[];
+  dirs: (number | null)[];
+}) {
+  if (times.length === 0) {
+    return <p className="text-[13px] text-[var(--tb-text-muted)]">No data available.</p>;
+  }
+
+  const W = 560;
+  const H = 230;
+  const pad = { top: 26, right: 10, bottom: 34, left: 30 };
   const maxY = Math.max(...gusts, ...wind, 10) * 1.1;
   const innerW = W - pad.left - pad.right;
   const innerH = H - pad.top - pad.bottom;
@@ -47,7 +67,9 @@ function DetailChart({ hourly, fromIndex }: { hourly: StationData['hourly']; fro
   const y = (v: number) => pad.top + innerH - (v / maxY) * innerH;
   const path = (vals: number[]) => vals.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(v)}`).join(' ');
 
+  const markIdx = evenIndices(times.length, 6);
   const yTicks = 4;
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
       {Array.from({ length: yTicks + 1 }).map((_, i) => {
@@ -55,34 +77,38 @@ function DetailChart({ hourly, fromIndex }: { hourly: StationData['hourly']; fro
         return (
           <g key={i}>
             <line x1={pad.left} x2={W - pad.right} y1={y(v)} y2={y(v)} stroke="#e3e6ea" />
-            <text x={pad.left - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#5b6470">
+            <text x={pad.left - 5} y={y(v) + 3} textAnchor="end" fontSize="9" fill="#5b6470">
               {Math.round(v)}
             </text>
           </g>
         );
       })}
-      {times.map((t, i) =>
-        i % 3 === 0 ? (
-          <text
-            key={i}
-            x={x(i)}
-            y={H - pad.bottom + 16}
-            textAnchor="end"
-            fontSize="9"
-            fill="#5b6470"
-            transform={`rotate(-45 ${x(i)} ${H - pad.bottom + 16})`}
-          >
-            {t.slice(11, 16)}
-          </text>
-        ) : null,
-      )}
-      <path d={path(wind)} fill="none" stroke="#1a56a8" strokeWidth="2" />
-      <path d={path(gusts)} fill="none" stroke="#b42318" strokeWidth="2" />
-      <g fontSize="11">
-        <rect x={pad.left + 4} y={pad.top} width="12" height="3" fill="#1a56a8" />
-        <text x={pad.left + 22} y={pad.top + 4} fill="#1b1f24">Wind (kt)</text>
-        <rect x={pad.left + 104} y={pad.top} width="12" height="3" fill="#b42318" />
-        <text x={pad.left + 122} y={pad.top + 4} fill="#1b1f24">Gusts (kt)</text>
+
+      {markIdx.map((i) => (
+        <text key={`t${i}`} x={x(i)} y={H - pad.bottom + 14} textAnchor="middle" fontSize="8.5" fill="#5b6470">
+          {times[i].slice(11, 16)}
+        </text>
+      ))}
+
+      {markIdx.map((i) => {
+        const dir = dirs[i];
+        if (dir == null) return null;
+        return (
+          <g key={`d${i}`} transform={`translate(${x(i)},${pad.top - 15}) rotate(${(dir + 180) % 360})`}>
+            <path d="M0,-5 L3.5,4 L0,1.5 L-3.5,4 Z" fill="#8a929c" />
+          </g>
+        );
+      })}
+
+      <path d={path(wind)} fill="none" stroke="#1a56a8" strokeWidth="1.75" />
+      <path d={path(gusts)} fill="none" stroke="#b42318" strokeWidth="1.75" />
+
+      <g fontSize="9">
+        <rect x={pad.left} y={3} width="10" height="3" fill="#1a56a8" />
+        <text x={pad.left + 13} y={6.5} fill="#1b1f24">Wind</text>
+        <rect x={pad.left + 46} y={3} width="10" height="3" fill="#b42318" />
+        <text x={pad.left + 59} y={6.5} fill="#1b1f24">Gusts</text>
+        <text x={W - pad.right} y={6.5} textAnchor="end" fill="#5b6470">↑ direction</text>
       </g>
     </svg>
   );
@@ -162,6 +188,29 @@ export default function WindStations() {
       : 0;
   const selectedWave =
     selectedState?.status === 'ok' ? selectedState.data.hourly.wave[selectedFromIndex] : undefined;
+
+  const history = selectedState?.status === 'ok' ? selectedState.data.bomHistory ?? [] : [];
+  const historicalTimes = history.map((h) => h.time);
+  const historicalWind = history.map((h) => h.windKt);
+  const historicalGusts = history.map((h) => h.gustKt);
+  const historicalDirs = history.map((h) => h.dirDeg);
+
+  const predictedTimes =
+    selectedState?.status === 'ok'
+      ? selectedState.data.hourly.time.slice(selectedFromIndex, selectedFromIndex + 24)
+      : [];
+  const predictedWind =
+    selectedState?.status === 'ok'
+      ? selectedState.data.hourly.wind.slice(selectedFromIndex, selectedFromIndex + 24)
+      : [];
+  const predictedGusts =
+    selectedState?.status === 'ok'
+      ? selectedState.data.hourly.gust.slice(selectedFromIndex, selectedFromIndex + 24)
+      : [];
+  const predictedDirs: (number | null)[] =
+    selectedState?.status === 'ok'
+      ? selectedState.data.hourly.dir.slice(selectedFromIndex, selectedFromIndex + 24)
+      : [];
 
   return (
     <ToolboxShell
@@ -321,15 +370,23 @@ export default function WindStations() {
               </div>
             </div>
 
-            <h3 className="tb-display mb-2 mt-6 text-[14px]">Next 24 Hours</h3>
-            <DetailChart hourly={selectedState.data.hourly} fromIndex={selectedFromIndex} />
+            <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div>
+                <h3 className="tb-display mb-2 text-[14px]">Historical — Last 24h (BOM)</h3>
+                <WindChart times={historicalTimes} wind={historicalWind} gusts={historicalGusts} dirs={historicalDirs} />
+              </div>
+              <div>
+                <h3 className="tb-display mb-2 text-[14px]">Predicted — Next 24h (Modelled)</h3>
+                <WindChart times={predictedTimes} wind={predictedWind} gusts={predictedGusts} dirs={predictedDirs} />
+              </div>
+            </div>
 
             <p className="tb-mono mt-3 text-[11px] text-[var(--tb-text-faint)]">
               Last updated {selectedState.data.current.time.replace('T', ' ')} ·{' '}
               {selectedState.data.current.source === 'bom'
                 ? 'live reading from a BOM automatic weather station'
                 : 'modelled estimate, not a direct BOM station feed'}
-              . 24-hour outlook is always modelled.
+              . Historical chart is real BOM observations; predicted chart is always modelled.
             </p>
           </>
         ) : selectedState?.status === 'error' ? (

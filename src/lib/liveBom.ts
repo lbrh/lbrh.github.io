@@ -6,6 +6,13 @@
 //
 const LIVE_DATA_URL = 'https://withered-water-16ab.lbrhounsell.workers.dev';
 
+export type LiveHistoryPoint = {
+  time: string;
+  windKt: number;
+  gustKt: number;
+  dirDeg: number | null;
+};
+
 export type LiveStationReading = {
   windKt: number;
   gustKt: number;
@@ -13,6 +20,7 @@ export type LiveStationReading = {
   dirDeg: number;
   airTemp: number | null;
   observedAt: string | null;
+  history: LiveHistoryPoint[];
 };
 
 export type LiveWarnings = {
