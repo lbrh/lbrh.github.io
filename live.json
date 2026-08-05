@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-08-05T11:42:00+10:00",
+  "stations": {},
+  "warnings": {
+    "strong": false,
+    "gale": false,
+    "storm": false,
+    "rawText": null
+  },
+  "forecastText": null,
+  "shipping": {
+    "arrivals": [
+      {
+        "ship": "APL Savannah (BM)",
+        "datetime": "05/08/2026 14:15",
+        "from": "Port Louis",
+        "to": "Webb Dock 4 East"
+      },
+      {
+        "ship": "One San Diego (PP)",
+        "datetime": "05/08/2026 19:15",
+        "from": "Sydney",
+        "to": "Swanson East 3"
+      },
+      {
+        "ship": "YM Enlightenment (PP)",
+        "datetime": "05/08/2026 19:30",
+        "from": "Botany Bay",
+        "to": "Swanson West 1"
+      },
+      {
+        "ship": "ESL Winner (SC)",
+        "datetime": "05/08/2026 21:00",
+        "from": "Wellington",
+        "to": "Webb Dock 5 East"
+      },
+      {
+        "ship": "Baltimore Highway",
+        "datetime": "05/08/2026 22:00",
+        "from": "Yokohama",
+        "to": "Webb Dock 2 West"
+      }
+    ],
+    "departures": [
+      {
+        "ship": "Gem Emerald (T)",
+        "datetime": "05/08/2026 14:00",
+        "from": "Geelong Refinery2",
+        "to": "Unknown"
+      },
+      {
+        "ship": "MSC Star R (SC)",
+        "datetime": "05/08/2026 14:30",
+        "from": "Webb Dock 4 East",
+        "to": "Brisbane"
+      },
+      {
+        "ship": "Responder",
+        "datetime": "05/08/2026 16:30",
+        "from": "Victoria Dock",
+        "to": "Melbourne"
+      },
+      {
+        "ship": "Tasmanian Achiever 2",
+        "datetime": "05/08/2026 17:55",
+        "from": "Webb Dock 1 East",
+        "to": "Burnie"
+      },
+      {
+        "ship": "Liekut",
+        "datetime": "05/08/2026 18:00",
+        "from": "Webb Dock 2 East",
+        "to": "Devonport"
+      },
+      {
+        "ship": "Spirit of Tasmania II",
+        "datetime": "05/08/2026 18:45",
+        "from": "Corio Quay South",
+        "to": "Devonport"
+      },
+      {
+        "ship": "Darya Neeti",
+        "datetime": "05/08/2026 20:00",
+        "from": "Bulk Grain 3",
+        "to": "Unknown"
+      },
+      {
+        "ship": "Androklis",
+        "datetime": "05/08/2026 21:00",
+        "from": "Bay Anchorage Outer",
+        "to": "Auckland"
+      },
+      {
+        "ship": "Yasa Moon",
+        "datetime": "05/08/2026 22:00",
+        "from": "Bay Anchorage Outer",
+        "to": "Unknown"
+      },
+      {
+        "ship": "YM Essence (PP)",
+        "datetime": "05/08/2026 22:00",
+        "from": "Swanson West 2",
+        "to": "Botany Bay"
+      }
+    ]
+  }
+}
