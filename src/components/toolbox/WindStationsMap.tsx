@@ -13,7 +13,7 @@ export type StationMapReading = {
 };
 
 function arrowIcon(dir: number, colour: string, active: boolean) {
-  const size = active ? 30 : 23;
+  const size = active ? 45 : 35;
   const html = `
     <div style="width:${size}px;height:${size}px;transform:rotate(${(dir + 180) % 360}deg);filter:drop-shadow(0 1px 1px rgba(0,0,0,0.4));">
       <svg viewBox="0 0 24 24" width="${size}" height="${size}">

@@ -41,7 +41,7 @@ export default function ToolboxShell({
             Runs entirely in your browser. No data is uploaded or stored.
           </p>
           <p className="text-[12px] text-[var(--tb-text-faint)]">
-            Reference only — not for navigation.
+            Reference only — not for navigation. Not official weather data; check BOM to confirm.
           </p>
         </div>
       </footer>
