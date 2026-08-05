@@ -37,11 +37,25 @@ function evenIndices(length: number, count: number): number[] {
   return Array.from({ length: n }, (_, k) => Math.round((k / (n - 1)) * (length - 1)));
 }
 
+const DEG_TO_COMPASS = {
+  0: 'N', 22.5: 'NNE', 45: 'NE', 67.5: 'ENE',
+  90: 'E', 112.5: 'ESE', 135: 'SE', 157.5: 'SSE',
+  180: 'S', 202.5: 'SSW', 225: 'SW', 247.5: 'WSW',
+  270: 'W', 292.5: 'WNW', 315: 'NW', 337.5: 'NNW',
+} as Record<number, string>;
+
+function formatDirWithLabel(deg: number | null): string {
+  if (deg == null) return '';
+  const label = DEG_TO_COMPASS[deg] || '?';
+  return `${deg}° (${label})`;
+}
+
 // Compact chart used for both the historical (BOM) and predicted (modelled)
 // panels — plain arrays rather than the hourly/fromIndex slicing style so
-// either data source can feed it directly. Direction is drawn as small
-// rotated arrows at evenly spaced points rather than a line, since a wind
-// bearing wraps at 360° and doesn't plot sensibly as a continuous value.
+// either data source can feed it directly. Direction is shown as angle and
+// cardinal label (e.g., "250° (WSW)") at evenly spaced points rather than
+// arrows, since a wind bearing wraps at 360° and doesn't plot sensibly as
+// a continuous line.
 function WindChart({
   times,
   wind,
@@ -94,9 +108,17 @@ function WindChart({
         const dir = dirs[i];
         if (dir == null) return null;
         return (
-          <g key={`d${i}`} transform={`translate(${x(i)},${pad.top - 15}) rotate(${(dir + 180) % 360})`}>
-            <path d="M0,-5 L3.5,4 L0,1.5 L-3.5,4 Z" fill="#8a929c" />
-          </g>
+          <text
+            key={`d${i}`}
+            x={x(i)}
+            y={pad.top - 6}
+            textAnchor="middle"
+            fontSize="8"
+            fill="#8a929c"
+            fontWeight="500"
+          >
+            {formatDirWithLabel(dir)}
+          </text>
         );
       })}
 
@@ -108,7 +130,6 @@ function WindChart({
         <text x={pad.left + 13} y={6.5} fill="#1b1f24">Wind</text>
         <rect x={pad.left + 46} y={3} width="10" height="3" fill="#b42318" />
         <text x={pad.left + 59} y={6.5} fill="#1b1f24">Gusts</text>
-        <text x={W - pad.right} y={6.5} textAnchor="end" fill="#5b6470">↑ direction</text>
       </g>
     </svg>
   );
