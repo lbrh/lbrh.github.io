@@ -4,9 +4,7 @@
 // GitHub Actions' Azure IP ranges, which is why this isn't a GitHub
 // Pages / raw.githubusercontent.com file like the rest of the site.)
 //
-// REPLACE with your deployed Worker's URL, e.g.
-// "https://bom-live-data.<your-subdomain>.workers.dev".
-const LIVE_DATA_URL = 'https://bom-live-data.YOUR-SUBDOMAIN.workers.dev';
+const LIVE_DATA_URL = 'https://withered-water-16ab.lbrhounsell.workers.dev';
 
 export type LiveStationReading = {
   windKt: number;
