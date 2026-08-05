@@ -211,17 +211,44 @@ function stripTags(html) {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Parses "DD/MM/YYYY HH:MM" (and close variants) as Melbourne local time.
-// Ports Victoria's table format is simple enough that a small manual
-// parser is more predictable here than a general date-parsing library.
+const MONTHS = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+// Ports Victoria's table format is "Aug  5 2026  7:15PM" (confirmed against
+// the live page — not "DD/MM/YYYY HH:MM" as originally assumed, which
+// silently matched zero rows). Also tolerates a numeric DD/MM/YYYY fallback
+// in case the format ever changes back.
 function parseShipDateTime(text) {
-  const m = text.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})[,\s]+(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  const [, dd, mm, yyRaw, hh, min] = m;
-  const yyyy = yyRaw.length === 2 ? 2000 + Number(yyRaw) : Number(yyRaw);
-  const guess = new Date(Date.UTC(yyyy, Number(mm) - 1, Number(dd), Number(hh), Number(min)));
-  const offsetMin = melbourneOffsetMinutes(guess);
-  return new Date(guess.getTime() - offsetMin * 60000);
+  const named = text.match(/([A-Za-z]{3,})\s+(\d{1,2})\s+(\d{4})\s+(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+  if (named) {
+    const [, monStr, dd, yyyy, hh12, min, ampm] = named;
+    const mon = MONTHS[monStr.slice(0, 3).toLowerCase()];
+    if (mon === undefined) return null;
+
+    let hh = Number(hh12);
+    if (ampm) {
+      const isPM = ampm.toUpperCase() === 'PM';
+      if (hh === 12) hh = isPM ? 12 : 0;
+      else if (isPM) hh += 12;
+    }
+
+    const guess = new Date(Date.UTC(Number(yyyy), mon, Number(dd), hh, Number(min)));
+    const offsetMin = melbourneOffsetMinutes(guess);
+    return new Date(guess.getTime() - offsetMin * 60000);
+  }
+
+  const numeric = text.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})[,\s]+(\d{1,2}):(\d{2})/);
+  if (numeric) {
+    const [, dd, mm, yyRaw, hh, min] = numeric;
+    const yyyy = yyRaw.length === 2 ? 2000 + Number(yyRaw) : Number(yyRaw);
+    const guess = new Date(Date.UTC(yyyy, Number(mm) - 1, Number(dd), Number(hh), Number(min)));
+    const offsetMin = melbourneOffsetMinutes(guess);
+    return new Date(guess.getTime() - offsetMin * 60000);
+  }
+
+  return null;
 }
 
 function extractShippingTable(html, headingText) {
@@ -247,10 +274,15 @@ function extractShippingTable(html, headingText) {
     const dt = parseShipDateTime(cells[1]);
     if (!dt || dt > cutoff) continue;
 
+    // dt is a real UTC instant — shift it by Melbourne's offset so the
+    // UTC getters below read back the correct local wall-clock time
+    // (same trick as nowInMelbourne()), instead of printing UTC time.
+    const local = new Date(dt.getTime() + melbourneOffsetMinutes(dt) * 60000);
+
     rows.push({
       ship: cells[0],
-      datetime: `${pad(dt.getUTCDate())}/${pad(dt.getUTCMonth() + 1)}/${dt.getUTCFullYear()} ` +
-        `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`,
+      datetime: `${pad(local.getUTCDate())}/${pad(local.getUTCMonth() + 1)}/${local.getUTCFullYear()} ` +
+        `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`,
       from: cells[2],
       to: cells[3],
     });
