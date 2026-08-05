@@ -274,6 +274,14 @@ export default function AutoRisk() {
     NO: "#b42318",
   };
 
+  const printReport = () => {
+    const prevTitle = document.title;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    document.title = `Risk Assessment ${dateStr}`;
+    window.print();
+    document.title = prevTitle;
+  };
+
   return (
     <ToolboxShell
       eyebrow="Tool 02"
@@ -372,7 +380,7 @@ export default function AutoRisk() {
         <div id="risk-report" className="tb-card mt-8 p-6">
           <div className="flex items-center justify-between">
             <h2 className="tb-display text-[18px]">Report</h2>
-            <button onClick={() => window.print()} className="tb-btn-ghost no-print px-3 py-1.5 text-xs">
+            <button onClick={printReport} className="tb-btn-ghost no-print px-3 py-1.5 text-xs">
               Print / Save PDF
             </button>
           </div>
@@ -420,22 +428,26 @@ export default function AutoRisk() {
             </tbody>
           </table>
 
-          <h3 className="tb-display mb-2 mt-6 text-[15px]">Wind / Gust Forecast</h3>
-          <WindChart times={result.times} wind={result.windKnots} gusts={result.gustsKnots} />
+          <div className="print-avoid-break">
+            <h3 className="tb-display mb-2 mt-6 text-[15px]">Wind / Gust Forecast</h3>
+            <WindChart times={result.times} wind={result.windKnots} gusts={result.gustsKnots} />
+          </div>
 
-          <h3 className="tb-display mb-2 mt-6 text-[15px]">BOM Forecast — Port Phillip</h3>
-          {result.forecastText ? (
-            <pre className="tb-mono max-h-72 overflow-y-auto whitespace-pre-wrap border-l-2 border-[var(--tb-border-strong)] pl-3 text-[11px] leading-relaxed">
-              {result.forecastText}
-            </pre>
-          ) : (
-            <p className="text-[13px] text-[var(--tb-text-muted)]">
-              BOM forecast text unavailable this run — the live data feed may not have run yet.
-            </p>
-          )}
+          <div className="print-avoid-break">
+            <h3 className="tb-display mb-2 mt-6 text-[15px]">BOM Forecast — Port Phillip</h3>
+            {result.forecastText ? (
+              <pre className="tb-mono max-h-72 overflow-y-auto whitespace-pre-wrap border-l-2 border-[var(--tb-border-strong)] pl-3 text-[11px] leading-relaxed">
+                {result.forecastText}
+              </pre>
+            ) : (
+              <p className="text-[13px] text-[var(--tb-text-muted)]">
+                BOM forecast text unavailable this run — the live data feed may not have run yet.
+              </p>
+            )}
+          </div>
 
           {includeShipping && (
-            <>
+            <div className="print-page-break">
               <h3 className="tb-display mb-1 mt-6 text-[15px]">Shipping Movements</h3>
               <ShippingTable title="Expected Arrivals" rows={result.arrivals} />
               <ShippingTable title="Expected Departures" rows={result.departures} />
@@ -446,12 +458,18 @@ export default function AutoRisk() {
                 <p>Webb Dock, Station Pier and Gellibrand Pier are on the bay itself.</p>
                 <p>Swanson, Appleton, Victoria Dock, Holden Dock and South Wharf are up the river.</p>
               </div>
-            </>
+
+              <p className="tb-mono mt-4 text-[11px] text-[var(--tb-text-faint)]">
+                If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.
+              </p>
+            </div>
           )}
 
-          <p className="tb-mono mt-4 text-[11px] text-[var(--tb-text-faint)]">
-            If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.
-          </p>
+          {!includeShipping && (
+            <p className="tb-mono mt-4 text-[11px] text-[var(--tb-text-faint)]">
+              If a strong wind warning is in effect, the Y flag (lifejackets) should be displayed.
+            </p>
+          )}
         </div>
       )}
 
@@ -468,6 +486,13 @@ export default function AutoRisk() {
           .no-print { display: none !important; }
           #risk-report { margin: 0; }
           #risk-report pre { max-height: none !important; overflow: visible !important; }
+          /* Keeps each heading glued to the content directly under it so a
+             heading can't land at the bottom of one page while its content
+             starts the next (the bug in the reported screenshot). */
+          .print-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+          /* Forces Shipping Movements onto its own page so all the weather
+             content stays together on page 1. */
+          .print-page-break { break-before: page; page-break-before: always; }
         }
       `}</style>
     </ToolboxShell>
