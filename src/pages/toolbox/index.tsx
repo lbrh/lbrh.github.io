@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Head from 'next/head';
+import WindSummary from '@/components/toolbox/WindSummary';
 
 type Tool = {
   n: string;
@@ -58,14 +59,6 @@ const TOOLS: Tool[] = [
       'Generate a high-resolution QR code for booking links, crew registration or race notices.',
     tags: ['Utility'],
   },
-  {
-    n: '07',
-    title: 'Wind Stations',
-    href: '/toolbox/wind-stations',
-    blurb:
-      'Current wind speed and gusts at six reference points around Port Phillip, with a detailed 24-hour view for each.',
-    tags: ['Live data', 'Mapping'],
-  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
@@ -107,7 +100,7 @@ export default function ToolboxIndex() {
         <title>Toolbox · Liam Robinson Hounsell</title>
         <meta
           name="description"
-          content="Seven browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes and wind stations."
+          content="Six browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets and QR codes."
         />
         <meta name="theme-color" content="#ffffff" />
       </Head>
@@ -143,9 +136,15 @@ export default function ToolboxIndex() {
 
         <div className="tb-rule tb-anim-rise mt-8" style={{ animationDelay: '0.1s' }} />
 
+        <div className="tb-anim-rise mt-8" style={{ animationDelay: '0.12s' }}>
+          <WindSummary />
+        </div>
+
+        <div className="tb-rule tb-anim-rise mt-8" style={{ animationDelay: '0.14s' }} />
+
         <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {TOOLS.map((t, i) => (
-            <ToolRow key={t.href} tool={t} delay={0.12 + i * 0.04} />
+            <ToolRow key={t.href} tool={t} delay={0.16 + i * 0.04} />
           ))}
         </div>
       </main>

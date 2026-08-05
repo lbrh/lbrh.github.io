@@ -1,76 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import ToolboxShell from '@/components/toolbox/ToolboxShell';
-import { WIND_STATIONS, type WindStation } from '@/data/windStations';
+import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
+import { formatDirection } from '@/lib/compass';
+import { fetchStationWind, type StationData } from '@/lib/windStationsApi';
 import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
 
 const REFRESH_MS = 10 * 60 * 1000;
 
-type StationReading = {
-  time: string;
-  wind: number;
-  gust: number;
-  dir: number;
-};
-
-type StationData = {
-  current: StationReading;
-  hourly: { time: string[]; wind: number[]; gust: number[]; dir: number[]; wave: number[] };
-};
-
 type StationState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ok'; data: StationData };
-
-const COMPASS = [
-  'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
-];
-
-function toCompass(deg: number): string {
-  return COMPASS[Math.round(deg / 22.5) % 16];
-}
-
-async function fetchStation(station: WindStation): Promise<StationData> {
-  const forecastUrl =
-    `https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.lng}` +
-    `&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
-    `&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
-    `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=2`;
-  const marineUrl =
-    `https://marine-api.open-meteo.com/v1/marine?latitude=${station.lat}&longitude=${station.lng}` +
-    `&hourly=wave_height&timezone=Australia%2FSydney&forecast_days=2`;
-
-  const [fRes, mRes] = await Promise.all([fetch(forecastUrl), fetch(marineUrl).catch(() => null)]);
-  if (!fRes.ok) throw new Error(`HTTP ${fRes.status}`);
-  const weather = await fRes.json();
-
-  let wave: number[] = [];
-  if (mRes && mRes.ok) {
-    const marine = await mRes.json();
-    wave = marine?.hourly?.wave_height ?? [];
-  }
-
-  return {
-    current: {
-      time: weather.current.time,
-      wind: weather.current.wind_speed_10m,
-      gust: weather.current.wind_gusts_10m,
-      dir: weather.current.wind_direction_10m,
-    },
-    hourly: {
-      time: weather.hourly.time,
-      wind: weather.hourly.wind_speed_10m,
-      gust: weather.hourly.wind_gusts_10m,
-      dir: weather.hourly.wind_direction_10m,
-      wave,
-    },
-  };
-}
 
 function WindArrow({ dir, size = 22 }: { dir: number; size?: number }) {
   return (
@@ -143,6 +88,7 @@ function DetailChart({ hourly, fromIndex }: { hourly: StationData['hourly']; fro
 }
 
 export default function WindStations() {
+  const router = useRouter();
   const [states, setStates] = useState<Record<string, StationState>>({});
   const [selected, setSelected] = useState<string>(WIND_STATIONS[0].id);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -155,7 +101,7 @@ export default function WindStations() {
     setStates(initial);
 
     WIND_STATIONS.forEach((station) => {
-      fetchStation(station)
+      fetchStationWind(station)
         .then((data) => setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data } })))
         .catch((e) =>
           setStates((prev) => ({
@@ -173,6 +119,16 @@ export default function WindStations() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const q = router.query.station;
+    const id = typeof q === 'string' ? q : undefined;
+    if (id && WIND_STATIONS.some((s) => s.id === id)) {
+      setSelected(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.station]);
 
   const selectedStation = WIND_STATIONS.find((s) => s.id === selected)!;
   const selectedState = states[selected];
@@ -202,9 +158,8 @@ export default function WindStations() {
 
   return (
     <ToolboxShell
-      eyebrow="Tool 07"
       title="Wind Stations"
-      description="Current wind speed and gusts at six reference points around Port Phillip, with a detailed 24-hour view for each."
+      description="Current wind speed, gusts and direction at six reference points around Port Phillip, with a detailed 24-hour view for each."
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -213,8 +168,8 @@ export default function WindStations() {
             className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]"
             style={{ animationDelay: '0.04s' }}
           >
-            Live modelled wind speed and gusts at six points spread across Port Phillip, colour-coded by
-            strength. Select a card or a marker on the map for its full 24-hour forecast.
+            Live modelled wind speed, gusts and direction at six points spread across Port Phillip,
+            colour-coded by strength. Select a card or a marker on the map for its full 24-hour forecast.
           </p>
         </div>
         <div className="tb-anim-rise flex flex-col items-end gap-1" style={{ animationDelay: '0.04s' }}>
@@ -262,7 +217,10 @@ export default function WindStations() {
                     </span>
                   </div>
                   <p className="mt-1 text-[11.5px] text-[var(--tb-text-muted)]">
-                    Gusting {Math.round(state.data.current.gust)} kt · from {toCompass(state.data.current.dir)}
+                    Gusting {Math.round(state.data.current.gust)} kt
+                  </p>
+                  <p className="tb-mono mt-0.5 text-[11px] text-[var(--tb-text-muted)]">
+                    {formatDirection(state.data.current.dir)}
                   </p>
                   {band && (
                     <p
@@ -318,8 +276,8 @@ export default function WindStations() {
                 <span className="tb-eyebrow">Direction</span>
                 <div className="mt-1 flex items-center gap-1.5 text-[var(--tb-accent)]">
                   <WindArrow dir={selectedState.data.current.dir} />
-                  <span className="tb-display text-[16px] text-[var(--tb-text)]">
-                    {toCompass(selectedState.data.current.dir)}
+                  <span className="tb-display text-[15px] text-[var(--tb-text)]">
+                    {formatDirection(selectedState.data.current.dir)}
                   </span>
                 </div>
               </div>

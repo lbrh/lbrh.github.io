@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { WindStation } from '@/data/windStations';
 import { BAND_COLOUR, type WindBand } from '@/lib/windBands';
+import { formatDirection } from '@/lib/compass';
 
 export type StationMapReading = {
   wind: number;
@@ -58,7 +59,9 @@ export default function WindStationsMap({
             <Tooltip direction="top" offset={[0, -10]}>
               <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
                 {s.name}
-                {r ? ` — ${Math.round(r.wind)} kt, gusting ${Math.round(r.gust)} kt` : ' — loading…'}
+                {r
+                  ? ` — ${Math.round(r.wind)} kt, gusting ${Math.round(r.gust)} kt, ${formatDirection(r.dir)}`
+                  : ' — loading…'}
               </span>
             </Tooltip>
           </Marker>
