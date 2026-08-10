@@ -475,6 +475,7 @@ export default function AutoRisk() {
 
       <style jsx global>{`
         @media print {
+          @page { size: A4; margin: 12mm; }
           /* display:none removes these from flow entirely, rather than the
              old visibility:hidden + position:absolute trick — that combo
              fought .toolbox's position:relative/min-height:100vh and would
@@ -484,8 +485,18 @@ export default function AutoRisk() {
           .toolbox > header,
           .toolbox > footer,
           .no-print { display: none !important; }
-          #risk-report { margin: 0; }
-          #risk-report pre { max-height: none !important; overflow: visible !important; }
+          .toolbox > main { padding: 0 !important; }
+          /* zoom scales the whole report (fonts, table padding, the chart's
+             percentage-based width) together, unlike transform, so layout
+             and page-break math stay correct. Tuned so everything up to
+             Shipping Movements lands on one A4 page.
+             ponytail: fixed 0.85 ratio, tune if fields are added later. */
+          #risk-report { margin: 0; zoom: 0.85; }
+          #risk-report td, #risk-report th { padding: 5px 8px !important; }
+          /* Forecast text is unbounded (BOM copy), so it's capped rather
+             than left to grow past the page — everything else here is a
+             fixed size and already accounted for in the one-page budget. */
+          #risk-report pre { max-height: 210px !important; overflow: hidden !important; }
           /* Keeps each heading glued to the content directly under it so a
              heading can't land at the bottom of one page while its content
              starts the next (the bug in the reported screenshot). */

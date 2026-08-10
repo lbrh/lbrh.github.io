@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
-import { formatDirection } from '@/lib/compass';
+import { formatDirection, toCompass } from '@/lib/compass';
 import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
 import { fetchLiveBomData, resetLiveBomCache } from '@/lib/liveBom';
 import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
@@ -37,17 +37,9 @@ function evenIndices(length: number, count: number): number[] {
   return Array.from({ length: n }, (_, k) => Math.round((k / (n - 1)) * (length - 1)));
 }
 
-const DEG_TO_COMPASS = {
-  0: 'N', 22.5: 'NNE', 45: 'NE', 67.5: 'ENE',
-  90: 'E', 112.5: 'ESE', 135: 'SE', 157.5: 'SSE',
-  180: 'S', 202.5: 'SSW', 225: 'SW', 247.5: 'WSW',
-  270: 'W', 292.5: 'WNW', 315: 'NW', 337.5: 'NNW',
-} as Record<number, string>;
-
 function formatDirWithLabel(deg: number | null): string {
   if (deg == null) return '';
-  const label = DEG_TO_COMPASS[deg] || '?';
-  return `${deg}° (${label})`;
+  return `${Math.round(deg)}° (${toCompass(deg)})`;
 }
 
 // Compact chart used for both the historical (BOM) and predicted (modelled)
@@ -56,25 +48,37 @@ function formatDirWithLabel(deg: number | null): string {
 // cardinal label (e.g., "250° (WSW)") at evenly spaced points rather than
 // arrows, since a wind bearing wraps at 360° and doesn't plot sensibly as
 // a continuous line.
+// textAnchor for an evenly-spaced tick: hug inward at the first/last mark
+// instead of centering, so the label doesn't run past the chart edge.
+function edgeAnchor(idx: number, count: number): 'start' | 'middle' | 'end' {
+  if (idx === 0) return 'start';
+  if (idx === count - 1) return 'end';
+  return 'middle';
+}
+
 function WindChart({
   times,
   wind,
   gusts,
   dirs,
+  maxY: maxYProp,
 }: {
   times: string[];
   wind: number[];
   gusts: number[];
   dirs: (number | null)[];
+  maxY?: number;
 }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
   if (times.length === 0) {
     return <p className="text-[13px] text-[var(--tb-text-muted)]">No data available.</p>;
   }
 
   const W = 560;
   const H = 230;
-  const pad = { top: 26, right: 10, bottom: 34, left: 30 };
-  const maxY = Math.max(...gusts, ...wind, 10) * 1.1;
+  const pad = { top: 26, right: 24, bottom: 34, left: 30 };
+  const maxY = maxYProp ?? Math.max(...gusts, ...wind, 10) * 1.1;
   const innerW = W - pad.left - pad.right;
   const innerH = H - pad.top - pad.bottom;
   const x = (i: number) => pad.left + (i / (times.length - 1 || 1)) * innerW;
@@ -84,8 +88,20 @@ function WindChart({
   const markIdx = evenIndices(times.length, 6);
   const yTicks = 4;
 
+  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    const idx = Math.round(((svgX - pad.left) / innerW) * (times.length - 1));
+    setHoverIdx(Math.min(times.length - 1, Math.max(0, idx)));
+  };
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full"
+      onMouseMove={handleMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
       {Array.from({ length: yTicks + 1 }).map((_, i) => {
         const v = (maxY / yTicks) * i;
         return (
@@ -98,13 +114,20 @@ function WindChart({
         );
       })}
 
-      {markIdx.map((i) => (
-        <text key={`t${i}`} x={x(i)} y={H - pad.bottom + 14} textAnchor="middle" fontSize="8.5" fill="#5b6470">
+      {markIdx.map((i, k) => (
+        <text
+          key={`t${i}`}
+          x={x(i)}
+          y={H - pad.bottom + 14}
+          textAnchor={edgeAnchor(k, markIdx.length)}
+          fontSize="8.5"
+          fill="#5b6470"
+        >
           {times[i].slice(11, 16)}
         </text>
       ))}
 
-      {markIdx.map((i) => {
+      {markIdx.map((i, k) => {
         const dir = dirs[i];
         if (dir == null) return null;
         return (
@@ -112,7 +135,7 @@ function WindChart({
             key={`d${i}`}
             x={x(i)}
             y={pad.top - 6}
-            textAnchor="middle"
+            textAnchor={edgeAnchor(k, markIdx.length)}
             fontSize="8"
             fill="#8a929c"
             fontWeight="500"
@@ -131,6 +154,34 @@ function WindChart({
         <rect x={pad.left + 46} y={3} width="10" height="3" fill="#b42318" />
         <text x={pad.left + 59} y={6.5} fill="#1b1f24">Gusts</text>
       </g>
+
+      {hoverIdx != null && (
+        <g pointerEvents="none">
+          <line x1={x(hoverIdx)} x2={x(hoverIdx)} y1={pad.top} y2={pad.top + innerH} stroke="#8a929c" strokeWidth="1" strokeDasharray="2,2" />
+          <circle cx={x(hoverIdx)} cy={y(wind[hoverIdx])} r="3" fill="#1a56a8" />
+          <circle cx={x(hoverIdx)} cy={y(gusts[hoverIdx])} r="3" fill="#b42318" />
+          {(() => {
+            const boxW = 96;
+            const boxH = 38;
+            const bx = Math.min(Math.max(x(hoverIdx) + 6, pad.left), W - pad.right - boxW);
+            const by = Math.max(pad.top, y(Math.max(wind[hoverIdx], gusts[hoverIdx])) - boxH - 6);
+            return (
+              <g>
+                <rect x={bx} y={by} width={boxW} height={boxH} fill="#ffffff" stroke="#cbd1d8" rx="2" />
+                <text x={bx + 7} y={by + 13} fontSize="9.5" fontWeight="600" fill="#1b1f24">
+                  {times[hoverIdx].slice(11, 16)}
+                </text>
+                <text x={bx + 7} y={by + 25} fontSize="9" fill="#1a56a8">
+                  Wind {Math.round(wind[hoverIdx])} kt
+                </text>
+                <text x={bx + 7} y={by + 36} fontSize="9" fill="#b42318">
+                  Gusting {Math.round(gusts[hoverIdx])} kt
+                </text>
+              </g>
+            );
+          })()}
+        </g>
+      )}
     </svg>
   );
 }
@@ -232,6 +283,9 @@ export default function WindStations() {
     selectedState?.status === 'ok'
       ? selectedState.data.hourly.dir.slice(selectedFromIndex, selectedFromIndex + 24)
       : [];
+
+  const chartMaxY =
+    Math.max(...historicalGusts, ...historicalWind, ...predictedGusts, ...predictedWind, 10) * 1.1;
 
   return (
     <ToolboxShell
@@ -394,11 +448,23 @@ export default function WindStations() {
             <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div>
                 <h3 className="tb-display mb-2 text-[14px]">Historical — Last 24h (BOM)</h3>
-                <WindChart times={historicalTimes} wind={historicalWind} gusts={historicalGusts} dirs={historicalDirs} />
+                <WindChart
+                  times={historicalTimes}
+                  wind={historicalWind}
+                  gusts={historicalGusts}
+                  dirs={historicalDirs}
+                  maxY={chartMaxY}
+                />
               </div>
               <div>
                 <h3 className="tb-display mb-2 text-[14px]">Predicted — Next 24h (Modelled)</h3>
-                <WindChart times={predictedTimes} wind={predictedWind} gusts={predictedGusts} dirs={predictedDirs} />
+                <WindChart
+                  times={predictedTimes}
+                  wind={predictedWind}
+                  gusts={predictedGusts}
+                  dirs={predictedDirs}
+                  maxY={chartMaxY}
+                />
               </div>
             </div>
 
