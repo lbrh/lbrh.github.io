@@ -129,7 +129,9 @@ export default function AutoStartSheetMaker() {
     `.logo{width:60px;height:100px;object-fit:contain;margin:0 15px;}` +
     `.header-text{text-align:center;}` +
     `.content-row{display:flex;align-items:stretch;justify-content:center;}` +
-    `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;}` +
+    `.side-qr{width:120px;font-size:9pt;display:flex;flex-direction:column;justify-content:flex-end;box-sizing:border-box;}` +
+    `.side-qr.left{padding-right:15px;}` +
+    `.side-qr.right{padding-left:15px;}` +
     `.side-qr img{width:80px;height:80px;margin-top:5px;}` +
     `td.cb input[type=checkbox]{transform:scale(.75);margin:0;}</style>`;
 
@@ -543,6 +545,13 @@ export default function AutoStartSheetMaker() {
           display: flex;
           flex-direction: column;
           justify-content: flex-end;
+          box-sizing: border-box;
+        }
+        #print-area :global(.side-qr.left) {
+          padding-right: 15px;
+        }
+        #print-area :global(.side-qr.right) {
+          padding-left: 15px;
         }
         #print-area :global(.side-qr img) {
           width: 80px;
