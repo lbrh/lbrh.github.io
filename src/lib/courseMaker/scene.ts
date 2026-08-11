@@ -2,6 +2,7 @@ import { anchorOf, findMark } from './doc';
 import type { Bounds, CourseDoc, Prim } from './types';
 
 const INK = '#111111';
+const LEG_BLUE = '#1a56a8';
 const LEG_W = 3;
 
 /** Rough Helvetica advance widths (per 1000 units) — good enough to centre and to box labels. */
@@ -44,6 +45,49 @@ function arrowHead(x: number, y: number, angle: number, size: number, fill: stri
   };
 }
 
+/** Fat, outlined "block" arrow — shaft plus a wide triangular head — for the wind indicator. */
+function blockArrow(x: number, y: number, angle: number, length: number): Prim {
+  const headLen = length * 0.42;
+  const shaftLen = length - headLen;
+  const shaftHw = length * 0.16;
+  const headHw = length * 0.3;
+  const dx = Math.cos(angle);
+  const dy = Math.sin(angle);
+  const px = Math.cos(angle + Math.PI / 2);
+  const py = Math.sin(angle + Math.PI / 2);
+  const at = (t: number, s: number): [number, number] => [x + dx * t + px * s, y + dy * t + py * s];
+  return {
+    k: 'poly',
+    pts: [
+      at(0, -shaftHw),
+      at(0, shaftHw),
+      at(shaftLen, shaftHw),
+      at(shaftLen, headHw),
+      at(length, 0),
+      at(shaftLen, -headHw),
+      at(shaftLen, -shaftHw),
+    ],
+    fill: '#ffffff',
+    stroke: INK,
+    w: 2.5,
+    close: true,
+  };
+}
+
+/** Short way round from a1 to a2 on a circle of radius r, as a sampled polyline. */
+function arcPrim(cx: number, cy: number, r: number, a1: number, a2: number, stroke: string, w: number): Prim {
+  let delta = a2 - a1;
+  while (delta > Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+  const steps = Math.max(2, Math.round(Math.abs(delta) / (Math.PI / 10)));
+  const pts: [number, number][] = [];
+  for (let s = 0; s <= steps; s++) {
+    const a = a1 + (delta * s) / steps;
+    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  return { k: 'poly', pts, stroke, w, close: false };
+}
+
 /**
  * Compiles a document into an ordered primitive list.
  * Order is deliberate: legs → race lines → marks → wind → labels,
@@ -56,35 +100,63 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   const taken: Box[] = [];
 
   /* ── Course legs ─────────────────────────────────────────────── */
+  // Trim points on either side of a waypoint (null where the leg was skipped),
+  // kept so the rounding pass below can arc between them.
+  const legTrim: ({ x1: number; y1: number; x2: number; y2: number } | null)[] = [];
   for (let i = 0; i < doc.sequence.length - 1; i++) {
     const a = anchorOf(doc, doc.sequence[i].ref);
     const b = anchorOf(doc, doc.sequence[i + 1].ref);
-    if (!a || !b) continue;
+    if (!a || !b) {
+      legTrim.push(null);
+      continue;
+    }
 
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy);
-    if (len < 1) continue;
+    if (len < 1) {
+      legTrim.push(null);
+      continue;
+    }
     const ux = dx / len;
     const uy = dy / len;
 
     // Trim each end back to the edge of the mark so lines never run under a buoy.
     const startPad = a.r + 6;
     const endPad = b.r + 6;
-    if (startPad + endPad >= len) continue;
+    if (startPad + endPad >= len) {
+      legTrim.push(null);
+      continue;
+    }
 
     const x1 = a.x + ux * startPad;
     const y1 = a.y + uy * startPad;
     const x2 = b.x - ux * endPad;
     const y2 = b.y - uy * endPad;
 
-    under.push({ k: 'line', x1, y1, x2, y2, stroke: INK, w: LEG_W, cap: 'round' });
+    under.push({ k: 'line', x1, y1, x2, y2, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
 
     // Stagger the arrowhead along the leg. On a windward/leeward the beat and
     // run lie on top of each other, so a fixed position would stack them.
     const t = 0.42 + ((i % 3) * 0.13);
     const ang = Math.atan2(dy, dx);
-    under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, INK));
+    under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, LEG_BLUE));
+
+    legTrim.push({ x1, y1, x2, y2 });
+  }
+
+  // Round each waypoint the course passes through: swing an arc between the
+  // trimmed leg ends instead of letting both legs point straight at the mark.
+  for (let i = 1; i < doc.sequence.length - 1; i++) {
+    const prevLeg = legTrim[i - 1];
+    const nextLeg = legTrim[i];
+    if (!prevLeg || !nextLeg) continue;
+    const m = anchorOf(doc, doc.sequence[i].ref);
+    if (!m) continue;
+    const r = m.r + 6;
+    const a1 = Math.atan2(prevLeg.y2 - m.y, prevLeg.x2 - m.x);
+    const a2 = Math.atan2(nextLeg.y1 - m.y, nextLeg.x1 - m.x);
+    under.push(arcPrim(m.x, m.y, r, a1, a2, LEG_BLUE, LEG_W));
   }
 
   /* ── Gate rules ──────────────────────────────────────────────── */
@@ -118,20 +190,35 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     });
 
     const ang = Math.atan2(l.y2 - l.y1, l.x2 - l.x1);
+    // A committee boat lies bow-into-wind, not along the line, so it needs the
+    // wind's heading rather than the line's. Falls back to the line's own
+    // angle when the course has no wind arrow to take a bearing from.
+    const firstWind = doc.winds[0];
+    const boatAng = firstWind
+      ? ((firstWind.angle + 90) * Math.PI) / 180 + Math.PI
+      : ang;
     const ends: [number, number, typeof l.endA][] = [
       [l.x1, l.y1, l.endA],
       [l.x2, l.y2, l.endB],
     ];
     for (const [ex, ey, style] of ends) {
       if (style === 'pin') {
-        mid.push({ k: 'circle', cx: ex, cy: ey, r: 8, fill: '#ffffff', stroke: INK, w: 2.5 });
+        mid.push({
+          k: 'circle',
+          cx: ex,
+          cy: ey,
+          r: 8,
+          fill: l.pinColor ?? '#f2c230',
+          stroke: INK,
+          w: 2.5,
+        });
       } else if (style === 'boat') {
-        // Simple committee-boat hull, aligned across the line.
-        const perp = ang + Math.PI / 2;
+        // Simple committee-boat hull, bow pointed into the wind.
+        const perp = boatAng + Math.PI / 2;
         const hw = 26;
         const hh = 11;
-        const cx = Math.cos(ang);
-        const cy = Math.sin(ang);
+        const cx = Math.cos(boatAng);
+        const cy = Math.sin(boatAng);
         const px = Math.cos(perp);
         const py = Math.sin(perp);
         const corner = (a: number, b: number): [number, number] => [
@@ -147,7 +234,7 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
             corner(hw * 0.45, hh),
             corner(-hw * 0.75, hh),
           ],
-          fill: '#ffffff',
+          fill: l.boatColor ?? '#f26722',
           stroke: INK,
           w: 2.5,
           close: true,
@@ -259,15 +346,14 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   for (const w of doc.winds) {
     // angle 0 = wind blowing down the page, i.e. windward mark at the top.
     const rad = ((w.angle + 90) * Math.PI) / 180;
-    const ex = w.x + Math.cos(rad) * w.length;
-    const ey = w.y + Math.sin(rad) * w.length;
-    mid.push({ k: 'line', x1: w.x, y1: w.y, x2: ex, y2: ey, stroke: INK, w: 3, cap: 'round' });
-    mid.push(arrowHead(ex, ey, rad, 16, INK));
+    mid.push(blockArrow(w.x, w.y, rad, w.length));
     if (w.label.trim()) {
+      // Centred in the shaft, roughly clear of the head.
+      const shaftMid = (w.length - w.length * 0.42) / 2;
       labels.push({
         k: 'text',
-        x: w.x,
-        y: w.y - 10,
+        x: w.x + Math.cos(rad) * shaftMid,
+        y: w.y + Math.sin(rad) * shaftMid + 5,
         text: w.label,
         size: 14,
         fill: INK,

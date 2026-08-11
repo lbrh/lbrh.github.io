@@ -233,6 +233,46 @@ export default function Inspector({ doc, selection, edit, onAlign, onDistribute 
             </select>
           </Row>
         ))}
+        {(line.endA === 'pin' || line.endB === 'pin') && (
+          <Row label="Buoy colour">
+            <select
+              className={inputCls}
+              value={line.pinColor ?? '#f2c230'}
+              onChange={(e) =>
+                edit((d) => ({
+                  ...d,
+                  lines: d.lines.map((l) => (l.id === id ? { ...l, pinColor: e.target.value } : l)),
+                }))
+              }
+            >
+              {MARK_COLORS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
+        {(line.endA === 'boat' || line.endB === 'boat') && (
+          <Row label="Boat colour">
+            <select
+              className={inputCls}
+              value={line.boatColor ?? '#f26722'}
+              onChange={(e) =>
+                edit((d) => ({
+                  ...d,
+                  lines: d.lines.map((l) => (l.id === id ? { ...l, boatColor: e.target.value } : l)),
+                }))
+              }
+            >
+              {MARK_COLORS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
         <Row label="Locked">
           <input
             type="checkbox"

@@ -40,6 +40,10 @@ export interface RaceLine {
   y2: number;
   endA: EndStyle;
   endB: EndStyle;
+  /** Fill colour for a 'pin' end. */
+  pinColor?: string;
+  /** Fill colour for a 'boat' end. */
+  boatColor?: string;
   locked: boolean;
 }
 

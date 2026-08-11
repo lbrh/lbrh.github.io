@@ -93,6 +93,8 @@ export function makeLine(kind: 'start' | 'finish', x: number, y: number, len = 2
     y2: y,
     endA: 'pin',
     endB: 'boat',
+    pinColor: '#f2c230',
+    boatColor: '#f26722',
     locked: false,
   };
 }
