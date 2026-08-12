@@ -1,17 +1,58 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import ToolboxShell from '@/components/toolbox/ToolboxShell';
-import { LONG_DISTANCE_MARKS } from '@/data/longDistanceMarks';
+import { LONG_DISTANCE_MARKS, type CourseMark } from '@/data/longDistanceMarks';
 import { haversineNm } from '@/lib/geo';
 
 const CoursePlannerMap = dynamic(() => import('@/components/toolbox/CoursePlannerMap'), {
   ssr: false,
 });
 
+const HTML2CANVAS_SRC = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+
+type Html2Canvas = (el: HTMLElement, opts?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
+
+/** Loaded from a CDN on first use rather than bundled, so the PNG export
+ *  doesn't add weight to every page load for a rarely-used feature. */
+function loadHtml2Canvas(): Promise<Html2Canvas> {
+  const w = window as typeof window & { html2canvas?: Html2Canvas };
+  if (w.html2canvas) return Promise.resolve(w.html2canvas);
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = HTML2CANVAS_SRC;
+    script.onload = () => (w.html2canvas ? resolve(w.html2canvas) : reject(new Error('html2canvas failed to load.')));
+    script.onerror = () => reject(new Error('Could not load the PNG export library — check your connection.'));
+    document.head.appendChild(script);
+  });
+}
+
+const escXml = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) =>
+      (
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }) as Record<string, string>
+      )[c],
+  );
+
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function CoursePlanner() {
   const [route, setRoute] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [routeName, setRouteName] = useState('Long Distance Race');
+  const [exportingPng, setExportingPng] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const mapWrapRef = useRef<HTMLDivElement>(null);
 
   const byName = useMemo(() => new Map(LONG_DISTANCE_MARKS.map((m) => [m.name, m])), []);
 
@@ -35,21 +76,144 @@ export default function CoursePlanner() {
   const removeAt = (i: number) => setRoute((r) => r.filter((_, idx) => idx !== i));
   const clearRoute = () => setRoute([]);
 
+  const safeName = () => routeName.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'course';
+
   const downloadCsv = () => {
     if (legs.length === 0) return;
     const header = 'Route,From,To,NM\n';
     const rows = legs
       .map((l) => `${JSON.stringify(routeName)},${JSON.stringify(l.from)},${JSON.stringify(l.to)},${l.nm.toFixed(2)}`)
       .join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${routeName.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'course'}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    download(new Blob([header + rows], { type: 'text/csv' }), `${safeName()}.csv`);
+  };
+
+  const downloadGpx = () => {
+    if (legs.length === 0) return;
+    const points = route.map((n) => byName.get(n)).filter((m): m is CourseMark => !!m);
+    const wpts = points
+      .map(
+        (m) => `  <wpt lat="${m.lat}" lon="${m.lng}">
+    <name>${escXml(m.name)}</name>
+    <desc>${escXml(m.description)}</desc>
+  </wpt>`,
+      )
+      .join('\n');
+    const rtepts = points
+      .map(
+        (m) => `      <rtept lat="${m.lat}" lon="${m.lng}">
+        <name>${escXml(m.name)}</name>
+      </rtept>`,
+      )
+      .join('\n');
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="LBRH Toolbox" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${escXml(routeName)}</name>
+    <time>${new Date().toISOString()}</time>
+  </metadata>
+${wpts}
+  <rte>
+    <name>${escXml(routeName)}</name>
+${rtepts}
+  </rte>
+</gpx>`;
+    download(new Blob([gpx], { type: 'application/gpx+xml' }), `${safeName()}.gpx`);
+  };
+
+  const exportPng = async () => {
+    if (legs.length === 0 || !mapWrapRef.current) return;
+    setExportingPng(true);
+    setExportError('');
+    try {
+      const html2canvas = await loadHtml2Canvas();
+      const mapCanvas = await html2canvas(mapWrapRef.current, {
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scale: 1,
+      });
+
+      const pad = 24;
+      const rowH = 22;
+      const titleH = 34;
+      const colHeadH = 30;
+      const totalLineH = 40;
+      const legsH = pad + titleH + colHeadH + route.length * rowH + totalLineH + pad;
+
+      const out = document.createElement('canvas');
+      out.width = mapCanvas.width;
+      out.height = mapCanvas.height + legsH;
+      const ctx = out.getContext('2d');
+      if (!ctx) throw new Error('Canvas 2D is unavailable in this browser.');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(mapCanvas, 0, 0);
+
+      const w = out.width;
+      const colIdx = pad;
+      const colMark = pad + 34;
+      const colLeg = w * 0.42;
+      const colNm = w - pad;
+      let y = mapCanvas.height + pad + titleH * 0.6;
+
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#111111';
+      ctx.font = 'bold 18px Arial, sans-serif';
+      ctx.fillText(routeName, pad, y);
+
+      y = mapCanvas.height + pad + titleH + colHeadH * 0.65;
+      ctx.font = 'bold 12px Arial, sans-serif';
+      ctx.fillStyle = '#666666';
+      ctx.fillText('#', colIdx, y);
+      ctx.fillText('Mark', colMark, y);
+      ctx.fillText('Leg', colLeg, y);
+      ctx.textAlign = 'right';
+      ctx.fillText('NM', colNm, y);
+      ctx.textAlign = 'left';
+
+      y += 10;
+      ctx.strokeStyle = '#cccccc';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(w - pad, y);
+      ctx.stroke();
+
+      ctx.font = '13px Arial, sans-serif';
+      ctx.fillStyle = '#111111';
+      route.forEach((name, i) => {
+        y += rowH;
+        ctx.fillText(String(i + 1), colIdx, y);
+        ctx.fillText(name, colMark, y);
+        if (i > 0) {
+          ctx.fillText(`${route[i - 1]} → ${name}`, colLeg, y);
+          ctx.textAlign = 'right';
+          ctx.fillText(legs[i - 1].nm.toFixed(2), colNm, y);
+          ctx.textAlign = 'left';
+        }
+      });
+
+      y += 14;
+      ctx.strokeStyle = '#111111';
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(w - pad, y);
+      ctx.stroke();
+
+      y += totalLineH * 0.65;
+      ctx.font = 'bold 15px Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`Total course length: ${totalNm.toFixed(2)} NM`, w - pad, y);
+      ctx.textAlign = 'left';
+
+      out.toBlob((blob) => {
+        if (blob) download(blob, `${safeName()}.png`);
+      }, 'image/png');
+    } catch (e) {
+      setExportError(`Could not export the PNG: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExportingPng(false);
+    }
   };
 
   return (
@@ -101,22 +265,45 @@ export default function CoursePlanner() {
             className="tb-input mt-1 w-full px-3 py-2 text-sm"
           />
 
-          <div className="mt-4 flex gap-2">
-            <button onClick={clearRoute} className="tb-btn-ghost flex-1 px-3 py-2 text-xs">
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button onClick={clearRoute} className="tb-btn-ghost px-3 py-2 text-xs">
               Clear
             </button>
             <button
               onClick={downloadCsv}
               disabled={legs.length === 0}
-              className="tb-btn flex-1 px-3 py-2 text-xs"
+              className="tb-btn px-3 py-2 text-xs"
             >
               Export CSV
             </button>
+            <button
+              onClick={downloadGpx}
+              disabled={legs.length === 0}
+              className="tb-btn-ghost px-3 py-2 text-xs"
+            >
+              Export GPX
+            </button>
+            <button
+              onClick={exportPng}
+              disabled={legs.length === 0 || exportingPng}
+              className="tb-btn-ghost px-3 py-2 text-xs"
+            >
+              {exportingPng ? 'Rendering…' : 'Export PNG'}
+            </button>
           </div>
+          <p className="mt-2 text-[10.5px] leading-relaxed text-[var(--tb-text-muted)]">
+            GPX carries waypoints and a route for import into Navionics or a chartplotter. PNG
+            renders the map with the leg table and total distance beneath it.
+          </p>
+          {exportError && (
+            <p className="mt-3 rounded-[3px] border border-[var(--tb-danger)]/40 bg-[#fef3f2] p-2 text-[11px] text-[var(--tb-danger)]">
+              {exportError}
+            </p>
+          )}
         </div>
 
         {/* Map */}
-        <div className="tb-card h-[420px] overflow-hidden sm:h-[520px]">
+        <div ref={mapWrapRef} className="tb-card h-[420px] overflow-hidden sm:h-[520px]">
           <CoursePlannerMap
             marks={LONG_DISTANCE_MARKS}
             route={route}
