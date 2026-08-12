@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import { LONG_DISTANCE_MARKS, type CourseMark } from '@/data/longDistanceMarks';
-import { haversineNm } from '@/lib/geo';
+import { haversineNm, toMagnetic, trueBearing } from '@/lib/geo';
 
 const CoursePlannerMap = dynamic(() => import('@/components/toolbox/CoursePlannerMap'), {
   ssr: false,
@@ -57,11 +57,18 @@ export default function CoursePlanner() {
   const byName = useMemo(() => new Map(LONG_DISTANCE_MARKS.map((m) => [m.name, m])), []);
 
   const legs = useMemo(() => {
-    const rows: { from: string; to: string; nm: number }[] = [];
+    const rows: { from: string; to: string; nm: number; magHdg: number }[] = [];
     for (let i = 0; i < route.length - 1; i++) {
       const a = byName.get(route[i]);
       const b = byName.get(route[i + 1]);
-      if (a && b) rows.push({ from: route[i], to: route[i + 1], nm: haversineNm(a.lat, a.lng, b.lat, b.lng) });
+      if (a && b) {
+        rows.push({
+          from: route[i],
+          to: route[i + 1],
+          nm: haversineNm(a.lat, a.lng, b.lat, b.lng),
+          magHdg: toMagnetic(trueBearing(a.lat, a.lng, b.lat, b.lng)),
+        });
+      }
     }
     return rows;
   }, [route, byName]);
@@ -80,9 +87,12 @@ export default function CoursePlanner() {
 
   const downloadCsv = () => {
     if (legs.length === 0) return;
-    const header = 'Route,From,To,NM\n';
+    const header = 'Route,From,To,NM,MagHdg\n';
     const rows = legs
-      .map((l) => `${JSON.stringify(routeName)},${JSON.stringify(l.from)},${JSON.stringify(l.to)},${l.nm.toFixed(2)}`)
+      .map(
+        (l) =>
+          `${JSON.stringify(routeName)},${JSON.stringify(l.from)},${JSON.stringify(l.to)},${l.nm.toFixed(2)},${Math.round(l.magHdg)}`,
+      )
       .join('\n');
     download(new Blob([header + rows], { type: 'text/csv' }), `${safeName()}.csv`);
   };
@@ -152,7 +162,8 @@ ${rtepts}
       const w = out.width;
       const colIdx = pad;
       const colMark = pad + 34;
-      const colLeg = w * 0.42;
+      const colLeg = w * 0.36;
+      const colHdg = w * 0.8;
       const colNm = w - pad;
       let y = mapCanvas.height + pad + titleH * 0.6;
 
@@ -168,6 +179,7 @@ ${rtepts}
       ctx.fillText('Mark', colMark, y);
       ctx.fillText('Leg', colLeg, y);
       ctx.textAlign = 'right';
+      ctx.fillText('Mag Hdg', colHdg, y);
       ctx.fillText('NM', colNm, y);
       ctx.textAlign = 'left';
 
@@ -188,6 +200,7 @@ ${rtepts}
         if (i > 0) {
           ctx.fillText(`${route[i - 1]} → ${name}`, colLeg, y);
           ctx.textAlign = 'right';
+          ctx.fillText(`${Math.round(legs[i - 1].magHdg)}°M`, colHdg, y);
           ctx.fillText(legs[i - 1].nm.toFixed(2), colNm, y);
           ctx.textAlign = 'left';
         }
@@ -227,7 +240,8 @@ ${rtepts}
       </h1>
       <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Click marks on the chart, in order, to lay a long-distance course. Each leg&apos;s
-        great-circle distance is logged below in nautical miles.
+        great-circle distance and magnetic heading (~11.5°E variation applied, reference only)
+        is logged below in nautical miles.
       </p>
 
       <div className="tb-anim-rise mt-8 grid gap-6 lg:grid-cols-[280px_1fr]" style={{ animationDelay: '0.08s' }}>
@@ -333,6 +347,7 @@ ${rtepts}
                   <th className="w-10">#</th>
                   <th>Mark</th>
                   <th>Leg</th>
+                  <th className="text-right">Mag Hdg</th>
                   <th className="text-right">NM</th>
                   <th className="w-20" />
                 </tr>
@@ -344,6 +359,9 @@ ${rtepts}
                     <td className="font-medium">{name}</td>
                     <td className="text-[var(--tb-text-muted)]">
                       {i > 0 ? `${route[i - 1]} → ${name}` : '—'}
+                    </td>
+                    <td className="tb-mono text-right">
+                      {i > 0 ? `${Math.round(legs[i - 1].magHdg)}°M` : '—'}
                     </td>
                     <td className="tb-mono text-right">{i > 0 ? legs[i - 1]?.nm.toFixed(2) : '—'}</td>
                     <td className="text-right">
