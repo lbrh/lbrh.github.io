@@ -22,6 +22,7 @@ export default function CoursePlannerMap({
       center={[-38.02, 144.95]}
       zoom={9}
       scrollWheelZoom
+      preferCanvas
       style={{ height: '100%', width: '100%', background: '#eef1f4' }}
     >
       <TileLayer
