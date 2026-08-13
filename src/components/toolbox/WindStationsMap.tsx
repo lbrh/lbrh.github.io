@@ -36,8 +36,8 @@ export default function WindStationsMap({
 }) {
   return (
     <MapContainer
-      center={[-38.05, 144.85]}
-      zoom={9}
+      bounds={L.latLngBounds(stations.map((s) => [s.lat, s.lng] as [number, number]))}
+      boundsOptions={{ padding: [24, 24] }}
       scrollWheelZoom
       style={{ height: '100%', width: '100%', background: '#eef1f4' }}
     >

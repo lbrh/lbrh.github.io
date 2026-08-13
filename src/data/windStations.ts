@@ -52,4 +52,11 @@ export const WIND_STATIONS: WindStation[] = [
     lat: -37.8634,
     lng: 144.9715,
   },
+  {
+    id: 'kilmore-gap',
+    name: 'Kilmore Gap',
+    description: 'Gap in the Great Dividing Range north of Melbourne — an early indicator of a wind change reaching the bay.',
+    lat: -37.3807,
+    lng: 144.9654,
+  },
 ];

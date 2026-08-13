@@ -38,6 +38,7 @@ const BOM_STATIONS = {
   'south-channel': ['IDV60801', 94853],
   'melbourne-airport': ['IDV60801', 94866],
   'st-kilda': ['IDV60901', 95864],
+  'kilmore-gap': ['IDV60801', 94860],
 };
 
 const COMPASS_DEG = {
