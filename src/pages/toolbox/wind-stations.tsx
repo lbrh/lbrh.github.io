@@ -267,21 +267,24 @@ export default function WindStations() {
   const historicalGusts = history.map((h) => h.gustKt);
   const historicalDirs = history.map((h) => h.dirDeg);
 
+  // Wind/dir now come in at 15-minute steps (see windStationsApi.ts), so
+  // "next 24h" is 96 steps, not 24.
+  const PREDICTED_STEPS = 24 * 4;
   const predictedTimes =
     selectedState?.status === 'ok'
-      ? selectedState.data.hourly.time.slice(selectedFromIndex, selectedFromIndex + 24)
+      ? selectedState.data.hourly.time.slice(selectedFromIndex, selectedFromIndex + PREDICTED_STEPS)
       : [];
   const predictedWind =
     selectedState?.status === 'ok'
-      ? selectedState.data.hourly.wind.slice(selectedFromIndex, selectedFromIndex + 24)
+      ? selectedState.data.hourly.wind.slice(selectedFromIndex, selectedFromIndex + PREDICTED_STEPS)
       : [];
   const predictedGusts =
     selectedState?.status === 'ok'
-      ? selectedState.data.hourly.gust.slice(selectedFromIndex, selectedFromIndex + 24)
+      ? selectedState.data.hourly.gust.slice(selectedFromIndex, selectedFromIndex + PREDICTED_STEPS)
       : [];
   const predictedDirs: (number | null)[] =
     selectedState?.status === 'ok'
-      ? selectedState.data.hourly.dir.slice(selectedFromIndex, selectedFromIndex + 24)
+      ? selectedState.data.hourly.dir.slice(selectedFromIndex, selectedFromIndex + PREDICTED_STEPS)
       : [];
 
   const chartMaxY =

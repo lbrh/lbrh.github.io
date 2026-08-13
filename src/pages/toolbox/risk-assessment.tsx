@@ -72,7 +72,9 @@ function WindChart({
         );
       })}
       {times.map((t, i) =>
-        i % 3 === 0 ? (
+        // Aim for ~8 x-axis labels regardless of how many points times
+        // holds (24 hourly, or 96 at minutely_15 resolution).
+        i % Math.max(1, Math.round(times.length / 8)) === 0 ? (
           <text
             key={i}
             x={x(i)}
@@ -156,9 +158,12 @@ export default function AutoRisk() {
     setError("");
     setResult(null);
     try {
+      // minutely_15 covers all of these fields for this location, so the
+      // whole forecast (not just wind) comes back at 15-minute steps
+      // instead of hourly.
       const forecastUrl =
         `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
-        `&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,uv_index,weather_code` +
+        `&minutely_15=temperature_2m,wind_speed_10m,wind_gusts_10m,uv_index,weather_code` +
         `&timezone=Australia%2FSydney&forecast_days=1`;
       const waveUrl =
         `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}` +
@@ -196,18 +201,20 @@ export default function AutoRisk() {
           : "BOM live data unavailable — warning status could not be verified this run.",
       );
 
-      const times: string[] = weather.hourly.time;
-      const temps: number[] = weather.hourly.temperature_2m;
-      const windKmh: number[] = weather.hourly.wind_speed_10m;
-      const gustsKmh: number[] = weather.hourly.wind_gusts_10m;
-      const uv: number[] = weather.hourly.uv_index;
-      const codes: number[] = weather.hourly.weather_code;
+      const times: string[] = weather.minutely_15.time;
+      const temps: number[] = weather.minutely_15.temperature_2m;
+      const windKmh: number[] = weather.minutely_15.wind_speed_10m;
+      const gustsKmh: number[] = weather.minutely_15.wind_gusts_10m;
+      const uv: number[] = weather.minutely_15.uv_index;
+      const codes: number[] = weather.minutely_15.weather_code;
 
       const windKnots = windKmh.map((w) => Math.round(w * KMH_TO_KT * 10) / 10);
       const gustsKnots = gustsKmh.map((g) => Math.round(g * KMH_TO_KT * 10) / 10);
 
       const thunder = [95, 96, 99];
-      const lightningHours = codes.filter((c) => thunder.includes(c)).length;
+      // Each entry is a 15-minute slot now, not an hour, so 4 matching
+      // slots is 1 hour of thunderstorm activity.
+      const lightningHours = codes.filter((c) => thunder.includes(c)).length / 4;
 
       const maxTemp = Math.max(...temps);
       const minTemp = Math.min(...temps);

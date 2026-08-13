@@ -11,6 +11,10 @@ export type StationReading = {
 
 export type StationData = {
   current: StationReading;
+  // Named `hourly` for its role (the forecast timeseries feeding the
+  // predicted chart), but wind/dir are Open-Meteo's minutely_15 data —
+  // 15-minute steps, not hourly. wave is still hourly (no finer variable
+  // exists for it) and step-filled to match the finer time array.
   hourly: { time: string[]; wind: number[]; gust: number[]; dir: number[]; wave: number[] };
   // Real BOM observations for the last ~24h, oldest first. Null when no live
   // BOM feed is available for this station (falls back to modelled-only).
@@ -18,10 +22,14 @@ export type StationData = {
 };
 
 export async function fetchStationWind(station: WindStation): Promise<StationData> {
+  // Wind is requested at Open-Meteo's minutely_15 resolution (still model
+  // data, just resampled finer) rather than hourly — a real ~4x jump in
+  // detail. Wave height has no minutely_15 variable (ocean current/sea
+  // level only, per Open-Meteo's docs), so the marine call stays hourly.
   const forecastUrl =
     `https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.lng}` +
     `&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
-    `&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
+    `&minutely_15=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
     `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=2`;
   const marineUrl =
     `https://marine-api.open-meteo.com/v1/marine?latitude=${station.lat}&longitude=${station.lng}` +
@@ -31,10 +39,20 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
   if (!fRes.ok) throw new Error(`HTTP ${fRes.status}`);
   const weather = await fRes.json();
 
-  let wave: number[] = [];
+  const time: string[] = weather.minutely_15.time;
+
+  // wave_height only exists hourly, so each 15-minute slot borrows its
+  // parent hour's value (a flat step every 4 slots) to stay index-aligned
+  // with the wind arrays above.
+  let wave: number[] = time.map(() => NaN);
   if (mRes && mRes.ok) {
     const marine = await mRes.json();
-    wave = marine?.hourly?.wave_height ?? [];
+    const marineTimes: string[] = marine?.hourly?.time ?? [];
+    const marineWave: number[] = marine?.hourly?.wave_height ?? [];
+    wave = time.map((t) => {
+      const idx = marineTimes.indexOf(`${t.slice(0, 13)}:00`);
+      return idx >= 0 ? marineWave[idx] : NaN;
+    });
   }
 
   return {
@@ -46,10 +64,10 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
       source: 'model',
     },
     hourly: {
-      time: weather.hourly.time,
-      wind: weather.hourly.wind_speed_10m,
-      gust: weather.hourly.wind_gusts_10m,
-      dir: weather.hourly.wind_direction_10m,
+      time,
+      wind: weather.minutely_15.wind_speed_10m,
+      gust: weather.minutely_15.wind_gusts_10m,
+      dir: weather.minutely_15.wind_direction_10m,
       wave,
     },
     bomHistory: null,
