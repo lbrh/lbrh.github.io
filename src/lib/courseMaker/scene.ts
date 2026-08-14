@@ -137,6 +137,7 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   // share a bearing), which needs special rounding treatment below.
   const anchors = doc.sequence.map((s) => anchorOf(doc, s.ref));
   const legDirs: ({ ux: number; uy: number } | null)[] = [];
+  const ANGLE_STEP = Math.PI / 4;
   for (let i = 0; i < doc.sequence.length - 1; i++) {
     const a = anchors[i];
     const b = anchors[i + 1];
@@ -147,7 +148,17 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy);
-    legDirs.push(len < 1 ? null : { ux: dx / len, uy: dy / len });
+    if (len < 1) {
+      legDirs.push(null);
+      continue;
+    }
+    // Snap to the nearest 45° — a windward mark a few degrees off dead
+    // ahead should still read as a straight beat, and a mark stays looking
+    // square-on right up until it's decisively enough off to one side to
+    // earn a genuine 45° notch, rather than drawing every tiny wobble in
+    // mark placement as its own slightly-off angle.
+    const snapped = Math.round(Math.atan2(dy, dx) / ANGLE_STEP) * ANGLE_STEP;
+    legDirs.push({ ux: Math.cos(snapped), uy: Math.sin(snapped) });
   }
   const REVERSAL_DOT = -0.9;
   const ROUNDING_HALF_GAP = 0.8; // ~46°: how close a splayed entry/exit sit either side of the approach line
@@ -196,9 +207,9 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     if (!center || !inDir) return null;
     const pad = center.r + 6;
     const backAngle = Math.atan2(-inDir.uy, -inDir.ux);
-    // Rotate the approach direction 90° to the side a mark is left on when
-    // rounded to port — the other way round for a starboard-rounding course.
-    const bulge = port ? { x: -inDir.uy, y: inDir.ux } : { x: inDir.uy, y: -inDir.ux };
+    // Leaving a mark to port means it stays on the boat's left as it's
+    // rounded — an anti-clockwise turn. Starboard is the mirror, clockwise.
+    const bulge = port ? { x: inDir.uy, y: -inDir.ux } : { x: -inDir.uy, y: inDir.ux };
     const bulgeAngle = Math.atan2(bulge.y, bulge.x);
     const { entryAngle, exitAngle, sweep } = roundingSplay(backAngle, bulgeAngle, ROUNDING_HALF_GAP);
     return {
