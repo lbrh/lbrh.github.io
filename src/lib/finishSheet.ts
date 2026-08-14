@@ -1,9 +1,10 @@
 /**
  * Shared logic for the Finish Sheet Reader tool: turning the raw rows
  * Claude extracts from a photographed finish sheet into an editable
- * table, optionally matched against an exported boat-list CSV, and
- * finally into the "Boat,Sail No,Fleet,HR,MN,SC,DidNot" CSV format
- * TopYacht's FinishTime import expects.
+ * table, matched against a required exported boat-list CSV (boat/fleet
+ * are always derived from that match, never freely typed), and finally
+ * into the "Boat,Sail No,Fleet,HR,MN,SC,DidNot" CSV format TopYacht's
+ * FinishTime import expects. DidNot is intentionally always left blank.
  *
  * Kept out of the page component so the matching/CSV logic can be
  * exercised without a browser or a real file upload.
@@ -35,7 +36,7 @@ export type FinishRow = {
   ss: string;
   note: string;
   hourGuessed: boolean;
-  /** true if there's no boat list to check against, or this sail number was found in it. */
+  /** true if this sail number was found in the boat list — boat/fleet are only ever set when matched. */
   matched: boolean;
 };
 
@@ -123,7 +124,7 @@ function newRowId(): string {
   return `row-${Date.now()}-${nextId}`;
 }
 
-/** Builds the editable table rows from what Claude extracted, matching each against the boat list if one was provided. */
+/** Builds the editable table rows from what Claude extracted, matching each against the boat list. */
 export function rowsFromExtracted(extracted: ExtractedRow[], boatMap: Map<string, BoatEntry> | null): FinishRow[] {
   return extracted.map((item) => {
     const entry = boatMap?.get(normalizeSail(item.sailNum));
@@ -138,7 +139,7 @@ export function rowsFromExtracted(extracted: ExtractedRow[], boatMap: Map<string
       ss: item.sec,
       note: item.note,
       hourGuessed: item.hourGuessed,
-      matched: !boatMap || !!entry,
+      matched: !!entry,
     };
   });
 }
@@ -155,15 +156,16 @@ export function blankRow(): FinishRow {
     ss: '',
     note: '',
     hourGuessed: false,
-    matched: true,
+    // Nothing to match yet — this becomes true once rematchRow finds an entrant.
+    matched: false,
   };
 }
 
 /** Re-checks a row's sail number against the boat list after the user edits it, filling boat/fleet in on a match. */
 export function rematchRow(row: FinishRow, boatMap: Map<string, BoatEntry> | null): FinishRow {
-  if (!boatMap) return { ...row, matched: true };
+  if (!boatMap) return { ...row, matched: false };
   const entry = boatMap.get(normalizeSail(row.sailNum));
-  if (!entry) return { ...row, matched: false };
+  if (!entry) return { ...row, boat: '', fleet: '', matched: false };
   return { ...row, boat: entry.boatName, fleet: entry.fleet, matched: true };
 }
 
@@ -172,7 +174,44 @@ function csvField(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** Sorts by place (numeric, blanks/unparsable last) and formats as the TopYacht FinishTime import CSV. */
+function isIntInRange(v: string, min: number, max: number): boolean {
+  if (v.trim() === '') return false;
+  const n = Number(v);
+  return Number.isInteger(n) && n >= min && n <= max;
+}
+
+export type RowValidation = {
+  place: boolean;
+  sailNum: boolean;
+  boat: boolean;
+  fleet: boolean;
+  hr: boolean;
+  mm: boolean;
+  ss: boolean;
+};
+
+/**
+ * Checks a row against TopYacht's FinishTime import rules: sail number,
+ * boat and fleet must match an entrant from the boat list, and HR/MN/SC
+ * must be in range. DidNot isn't validated — it's always exported blank.
+ */
+export function validateRow(row: FinishRow): RowValidation {
+  return {
+    place: isIntInRange(row.place, 1, 9999),
+    sailNum: row.matched,
+    boat: row.matched && row.boat.trim() !== '',
+    fleet: row.matched && row.fleet.trim() !== '',
+    hr: isIntInRange(row.hr, 0, 23),
+    mm: isIntInRange(row.mm, 0, 60),
+    ss: isIntInRange(row.ss, 0, 60),
+  };
+}
+
+export function rowIsValid(v: RowValidation): boolean {
+  return v.place && v.sailNum && v.boat && v.fleet && v.hr && v.mm && v.ss;
+}
+
+/** Sorts by place (numeric, blanks/unparsable last) and formats as the TopYacht FinishTime import CSV. DidNot is always left blank. */
 export function rowsToCsv(rows: FinishRow[]): string {
   const sorted = [...rows].sort((a, b) => {
     const pa = Number(a.place);
@@ -184,7 +223,7 @@ export function rowsToCsv(rows: FinishRow[]): string {
 
   const header = ['Boat', 'Sail No', 'Fleet', 'HR', 'MN', 'SC', 'DidNot'];
   const lines = sorted.map((r) =>
-    [r.boat, r.sailNum, r.fleet, pad2(r.hr), pad2(r.mm), pad2(r.ss), r.note].map(csvField).join(','),
+    [r.boat, r.sailNum, r.fleet, pad2(r.hr), pad2(r.mm), pad2(r.ss), ''].map(csvField).join(','),
   );
   return [header.join(','), ...lines].join('\n') + '\n';
 }

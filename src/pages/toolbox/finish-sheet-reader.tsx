@@ -7,8 +7,10 @@ import {
   missingBoatColumns,
   parseExtractedRows,
   rematchRow,
+  rowIsValid,
   rowsFromExtracted,
   rowsToCsv,
+  validateRow,
   type BoatEntry,
   type FinishRow,
 } from '@/lib/finishSheet';
@@ -127,6 +129,10 @@ export default function FinishSheetReader() {
   const [rows, setRows] = useState<FinishRow[] | null>(null);
 
   const handlePhoto = async (file: File) => {
+    if (!boatMap) {
+      setError('Upload the boat list CSV first — boat and fleet are filled in from it, not typed by hand.');
+      return;
+    }
     setError('');
     setPhotoName(file.name);
 
@@ -188,6 +194,7 @@ export default function FinishSheetReader() {
         }
         const map = buildBoatMap(data);
         setBoatMap(map);
+        setError('');
         // Re-match any rows already on screen against the freshly loaded list.
         setRows((prev) => (prev ? prev.map((r) => rematchRow(r, map)) : prev));
       },
@@ -229,10 +236,11 @@ export default function FinishSheetReader() {
     });
   }, [rows]);
 
-  const unmatchedCount = rows ? rows.filter((r) => !r.matched).length : 0;
+  const invalidCount = rows ? rows.filter((r) => !rowIsValid(validateRow(r))).length : 0;
+  const canExport = !!rows && rows.length > 0 && invalidCount === 0;
 
   const exportCsv = () => {
-    if (!rows || !rows.length) return;
+    if (!canExport || !rows) return;
     const safe = photoName.trim().replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]+/g, '-') || 'finish-sheet';
     download(new Blob([rowsToCsv(rows)], { type: 'text/csv' }), `FinishTimeImport_${safe}.csv`);
   };
@@ -248,47 +256,16 @@ export default function FinishSheetReader() {
         className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]"
         style={{ animationDelay: '0.04s' }}
       >
-        Upload a photo of a handwritten or printed finish sheet and Claude will read it into a table
-        you can check and correct before exporting. Navigate to the correct race in TopYacht first,
-        then export a boat list from there (Boat List &rarr; Export) and upload it below to auto-fill
-        boat names and fleets from sail numbers.
+        Navigate to the correct race in TopYacht first, then export its boat list (Boat List &rarr;
+        Export) and upload it below — it&apos;s required, since boat and fleet are always filled in
+        from it rather than typed by hand. Then upload a photo of the finish sheet and Claude will
+        read it into a table you can check and correct before exporting.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <span className="tb-eyebrow">Finish Sheet Photo</span>
-            <label
-              className="mt-2 flex cursor-pointer flex-col items-center justify-center border-4 border-dashed border-[var(--tb-border)] p-8 text-center transition hover:border-[var(--tb-accent)]"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const f = e.dataTransfer.files?.[0];
-                if (f) handlePhoto(f);
-              }}
-            >
-              {photoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoPreview} alt="Finish sheet preview" className="max-h-40 object-contain" />
-              ) : (
-                <p className="text-[var(--tb-text-muted)]">Drag and drop a photo here, or click to select</p>
-              )}
-              {photoName && <p className="tb-mono mt-2 text-sm font-medium text-[var(--tb-accent)]">{photoName}</p>}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handlePhoto(f);
-                }}
-              />
-            </label>
-            {extracting && <p className="mt-2 text-sm text-[var(--tb-text-muted)]">Reading the finish sheet…</p>}
-          </div>
-
-          <div>
-            <span className="tb-eyebrow">Boat List CSV (optional, recommended)</span>
+            <span className="tb-eyebrow">Boat List CSV (required)</span>
             <label
               className="mt-2 flex cursor-pointer flex-col items-center justify-center border-4 border-dashed border-[var(--tb-border)] p-8 text-center transition hover:border-[var(--tb-accent)]"
               onDragOver={(e) => e.preventDefault()}
@@ -323,6 +300,44 @@ export default function FinishSheetReader() {
               </p>
             )}
           </div>
+
+          <div>
+            <span className="tb-eyebrow">Finish Sheet Photo</span>
+            <label
+              className={`mt-2 flex flex-col items-center justify-center border-4 border-dashed p-8 text-center transition ${
+                boatMap
+                  ? 'cursor-pointer border-[var(--tb-border)] hover:border-[var(--tb-accent)]'
+                  : 'cursor-not-allowed border-[var(--tb-border)] opacity-50'
+              }`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const f = e.dataTransfer.files?.[0];
+                if (f) handlePhoto(f);
+              }}
+            >
+              {photoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoPreview} alt="Finish sheet preview" className="max-h-40 object-contain" />
+              ) : (
+                <p className="text-[var(--tb-text-muted)]">
+                  {boatMap ? 'Drag and drop a photo here, or click to select' : 'Upload the boat list first'}
+                </p>
+              )}
+              {photoName && <p className="tb-mono mt-2 text-sm font-medium text-[var(--tb-accent)]">{photoName}</p>}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+                className="hidden"
+                disabled={!boatMap}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handlePhoto(f);
+                }}
+              />
+            </label>
+            {extracting && <p className="mt-2 text-sm text-[var(--tb-text-muted)]">Reading the finish sheet…</p>}
+          </div>
         </div>
 
         {error && (
@@ -331,10 +346,11 @@ export default function FinishSheetReader() {
           </p>
         )}
 
-        {rows && unmatchedCount > 0 && (
+        {rows && invalidCount > 0 && (
           <p className="mt-4 rounded-[3px] border border-[var(--tb-warn)]/40 bg-[#fffaeb] p-3 text-sm text-[var(--tb-warn)]">
-            {unmatchedCount} row{unmatchedCount === 1 ? '' : 's'} didn&apos;t match a sail number in the boat
-            list, highlighted below. Fix the sail number or fill in the boat/fleet by hand.
+            {invalidCount} row{invalidCount === 1 ? '' : 's'} {invalidCount === 1 ? 'has' : 'have'} a problem,
+            highlighted below — usually a sail number that didn&apos;t match the boat list, or a place/time
+            out of range. Export is disabled until these are fixed.
           </p>
         )}
       </div>
@@ -345,7 +361,7 @@ export default function FinishSheetReader() {
             <h2 className="tb-display text-[17px]">Preview</h2>
             <span className="tb-mono text-xs text-[var(--tb-text-muted)]">
               {rows.length} row{rows.length === 1 ? '' : 's'}
-              {boatMap ? `, ${unmatchedCount} unmatched` : ''}
+              {invalidCount > 0 ? `, ${invalidCount} invalid` : ''}
             </span>
           </div>
 
@@ -364,77 +380,99 @@ export default function FinishSheetReader() {
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((r) => (
-                <tr key={r.id} style={!r.matched ? { background: '#fffaeb' } : undefined}>
-                  <td>
-                    <input
-                      className="tb-input w-14 px-2 py-1 text-sm"
-                      value={r.place}
-                      onChange={(e) => updateRow(r.id, { place: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-24 px-2 py-1 text-sm"
-                      value={r.sailNum}
-                      onChange={(e) => updateRow(r.id, { sailNum: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-40 px-2 py-1 text-sm"
-                      value={r.boat}
-                      onChange={(e) => updateRow(r.id, { boat: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-24 px-2 py-1 text-sm"
-                      value={r.fleet}
-                      onChange={(e) => updateRow(r.id, { fleet: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-14 px-2 py-1 text-sm"
-                      value={r.hr}
-                      onChange={(e) => updateRow(r.id, { hr: e.target.value })}
-                      title={r.hourGuessed ? 'Hour was inferred, not written on the sheet — double-check it.' : undefined}
-                      style={r.hourGuessed ? { borderColor: 'var(--tb-warn)' } : undefined}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-14 px-2 py-1 text-sm"
-                      value={r.mm}
-                      onChange={(e) => updateRow(r.id, { mm: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-14 px-2 py-1 text-sm"
-                      value={r.ss}
-                      onChange={(e) => updateRow(r.id, { ss: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tb-input w-20 px-2 py-1 text-sm"
-                      value={r.note}
-                      onChange={(e) => updateRow(r.id, { note: e.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => removeRow(r.id)}
-                      className="tb-btn-ghost px-2 py-1 text-xs"
-                      aria-label="Remove row"
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sortedRows.map((r) => {
+                const v = validateRow(r);
+                const invalidStyle = { borderColor: 'var(--tb-danger)', background: '#fef3f2' };
+                return (
+                  <tr key={r.id} style={!rowIsValid(v) ? { background: '#fffaeb' } : undefined}>
+                    <td>
+                      <input
+                        className="tb-input w-14 px-2 py-1 text-sm"
+                        value={r.place}
+                        onChange={(e) => updateRow(r.id, { place: e.target.value })}
+                        style={!v.place ? invalidStyle : undefined}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="tb-input w-24 px-2 py-1 text-sm"
+                        value={r.sailNum}
+                        onChange={(e) => updateRow(r.id, { sailNum: e.target.value })}
+                        title={!v.sailNum ? "Doesn't match a sail number in the boat list." : undefined}
+                        style={!v.sailNum ? invalidStyle : undefined}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        readOnly
+                        className="tb-input w-40 cursor-not-allowed px-2 py-1 text-sm text-[var(--tb-text-muted)]"
+                        value={r.boat}
+                        title="Filled in automatically from the boat list — fix the sail number to change this."
+                        style={!v.boat ? invalidStyle : { background: 'var(--tb-surface)' }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        readOnly
+                        className="tb-input w-24 cursor-not-allowed px-2 py-1 text-sm text-[var(--tb-text-muted)]"
+                        value={r.fleet}
+                        title="Filled in automatically from the boat list — fix the sail number to change this."
+                        style={!v.fleet ? invalidStyle : { background: 'var(--tb-surface)' }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="tb-input w-14 px-2 py-1 text-sm"
+                        value={r.hr}
+                        onChange={(e) => updateRow(r.id, { hr: e.target.value })}
+                        title={
+                          !v.hr
+                            ? 'Must be 0–23.'
+                            : r.hourGuessed
+                              ? 'Hour was inferred, not written on the sheet — double-check it.'
+                              : undefined
+                        }
+                        style={!v.hr ? invalidStyle : r.hourGuessed ? { borderColor: 'var(--tb-warn)' } : undefined}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="tb-input w-14 px-2 py-1 text-sm"
+                        value={r.mm}
+                        onChange={(e) => updateRow(r.id, { mm: e.target.value })}
+                        title={!v.mm ? 'Must be 0–60.' : undefined}
+                        style={!v.mm ? invalidStyle : undefined}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="tb-input w-14 px-2 py-1 text-sm"
+                        value={r.ss}
+                        onChange={(e) => updateRow(r.id, { ss: e.target.value })}
+                        title={!v.ss ? 'Must be 0–60.' : undefined}
+                        style={!v.ss ? invalidStyle : undefined}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="tb-input w-20 px-2 py-1 text-sm"
+                        value={r.note}
+                        onChange={(e) => updateRow(r.id, { note: e.target.value })}
+                        title="Not exported — DidNot is always left blank in the CSV."
+                      />
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => removeRow(r.id)}
+                        className="tb-btn-ghost px-2 py-1 text-xs"
+                        aria-label="Remove row"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
@@ -442,13 +480,13 @@ export default function FinishSheetReader() {
             <button onClick={addRow} className="tb-btn-ghost px-4 py-2 text-sm">
               + Add row
             </button>
-            <button onClick={exportCsv} disabled={!rows.length} className="tb-btn px-4 py-2 text-sm">
+            <button onClick={exportCsv} disabled={!canExport} className="tb-btn px-4 py-2 text-sm">
               Export CSV
             </button>
           </div>
           <p className="tb-mono mt-2 text-xs text-[var(--tb-text-muted)]">
-            Exports Boat, Sail No, Fleet, HR, MN, SC, DidNot — ready for TopYacht&apos;s FinishTime CSV
-            import, sorted by place.
+            Exports Boat, Sail No, Fleet, HR, MN, SC, DidNot (always blank) — ready for TopYacht&apos;s
+            FinishTime CSV import, sorted by place.
           </p>
         </div>
       )}
