@@ -46,11 +46,16 @@ function arrowHead(x: number, y: number, angle: number, size: number, fill: stri
 }
 
 /** Fat, outlined "block" arrow — shaft plus a wide triangular head — for the wind indicator. */
-function blockArrow(x: number, y: number, angle: number, length: number): Prim {
+function blockArrow(
+  x: number,
+  y: number,
+  angle: number,
+  length: number,
+  shaftHw = length * 0.16,
+  headHw = length * 0.3,
+): Prim {
   const headLen = length * 0.42;
   const shaftLen = length - headLen;
-  const shaftHw = length * 0.16;
-  const headHw = length * 0.3;
   const dx = Math.cos(angle);
   const dy = Math.sin(angle);
   const px = Math.cos(angle + Math.PI / 2);
@@ -133,14 +138,26 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     const y1 = a.y + uy * startPad;
     const x2 = b.x - ux * endPad;
     const y2 = b.y - uy * endPad;
+    const trimmedLen = len - startPad - endPad;
+    const ang = Math.atan2(dy, dx);
 
     under.push({ k: 'line', x1, y1, x2, y2, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
 
-    // Stagger the arrowhead along the leg. On a windward/leeward the beat and
-    // run lie on top of each other, so a fixed position would stack them.
-    const t = 0.42 + ((i % 3) * 0.13);
-    const ang = Math.atan2(dy, dx);
-    under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, LEG_BLUE));
+    // Real course diagrams don't put a single arrowhead in the dead centre of
+    // a leg — they show one arrow leaving the mark and another arriving at
+    // the next, so the direction reads clearly at both ends. Stagger the
+    // offset a little per occurrence, since on a windward/leeward course the
+    // beat and run retrace the same line and would otherwise stack exactly.
+    const jitter = (i % 3) * 7;
+    const arrowOffset = Math.min(30, trimmedLen * 0.3) + jitter;
+    if (trimmedLen < arrowOffset * 2 + 16) {
+      // Too short for two distinct arrows — fall back to one, centred.
+      const t = 0.42 + (i % 3) * 0.13;
+      under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, LEG_BLUE));
+    } else {
+      under.push(arrowHead(x1 + ux * (arrowOffset - 13), y1 + uy * (arrowOffset - 13), ang, 13, LEG_BLUE));
+      under.push(arrowHead(x2 - ux * arrowOffset, y2 - uy * arrowOffset, ang, 13, LEG_BLUE));
+    }
 
     legTrim.push({ x1, y1, x2, y2 });
   }
@@ -346,16 +363,37 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   for (const w of doc.winds) {
     // angle 0 = wind blowing down the page, i.e. windward mark at the top.
     const rad = ((w.angle + 90) * Math.PI) / 180;
-    mid.push(blockArrow(w.x, w.y, rad, w.length));
-    if (w.label.trim()) {
+    const label = w.label.trim();
+
+    // The shaft needs to be at least as wide as the label, so it doesn't
+    // spill out the sides. Widen it to fit, up to a cap (so short arrows
+    // with long labels don't turn into a fat rectangle), shrinking the
+    // font as a last resort if it still won't fit at that cap.
+    const minShaftHw = w.length * 0.16;
+    const maxShaftHw = w.length * 0.42;
+    let shaftHw = minShaftHw;
+    let labelSize = 14;
+    const padding = 8;
+    if (label) {
+      const desiredHw = textWidth(label, labelSize, true) / 2 + padding;
+      shaftHw = Math.min(Math.max(minShaftHw, desiredHw), maxShaftHw);
+      if (desiredHw > maxShaftHw) {
+        const unitWidth = textWidth(label, 1, true);
+        labelSize = Math.max(8, ((maxShaftHw - padding) * 2) / unitWidth);
+      }
+    }
+    const headHw = Math.max(w.length * 0.3, shaftHw + 6);
+
+    mid.push(blockArrow(w.x, w.y, rad, w.length, shaftHw, headHw));
+    if (label) {
       // Centred in the shaft, roughly clear of the head.
       const shaftMid = (w.length - w.length * 0.42) / 2;
       labels.push({
         k: 'text',
         x: w.x + Math.cos(rad) * shaftMid,
         y: w.y + Math.sin(rad) * shaftMid + 5,
-        text: w.label,
-        size: 14,
+        text: label,
+        size: labelSize,
         fill: INK,
         anchor: 'middle',
         bold: true,
