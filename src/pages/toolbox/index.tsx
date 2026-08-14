@@ -59,6 +59,14 @@ const TOOLS: Tool[] = [
       'Lay a fixed-mark course by selecting marks in order, then total each leg in nautical miles and export the schedule as CSV.',
     tags: ['Mapping', 'CSV'],
   },
+  {
+    n: '07',
+    title: 'Finish Sheet Reader',
+    href: '/toolbox/finish-sheet-reader',
+    blurb:
+      'Read a photo of a handwritten or printed finish sheet into an editable table, matched against an exported boat list, and export a TopYacht FinishTime import CSV.',
+    tags: ['AI', 'CSV'],
+  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
@@ -100,7 +108,7 @@ export default function ToolboxIndex() {
         <title>Toolbox · Liam Robinson Hounsell</title>
         <meta
           name="description"
-          content="Six browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets and QR codes."
+          content="Seven browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes and finish sheet reading."
         />
         <meta name="theme-color" content="#ffffff" />
       </Head>

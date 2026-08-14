@@ -1,0 +1,18 @@
+# Reference config for deploying finish-sheet-worker.js with the Wrangler
+# CLI (`npx wrangler deploy --config wrangler-finish-sheet.toml` from this
+# directory), if you ever have Node available. Not required for a
+# dashboard-based deploy — paste the worker source directly there and add
+# ANTHROPIC_API_KEY as an encrypted secret under Settings -> Variables
+# instead.
+
+name = "finish-sheet-reader"
+main = "finish-sheet-worker.js"
+compatibility_date = "2024-09-01"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# After deploying, set the secret (CLI only — the dashboard flow adds it
+# through Settings -> Variables directly):
+#   npx wrangler secret put ANTHROPIC_API_KEY --config wrangler-finish-sheet.toml
