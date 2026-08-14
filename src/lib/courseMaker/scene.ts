@@ -99,6 +99,25 @@ function arcPrim(cx: number, cy: number, r: number, a1: number, a2: number, stro
 }
 
 /**
+ * Splits a "come back the way you went" rounding into an entry angle and an
+ * exit angle either side of `backAngle` (the direction the boat arrived
+ * from), biased toward `towardAngle` — the side the loop should bulge out
+ * on — plus the signed sweep that gets from one to the other the long way
+ * round (through `towardAngle`), since the short way collapses into the
+ * approach line itself instead of going round the mark.
+ */
+function roundingSplay(backAngle: number, towardAngle: number, halfGap: number) {
+  let diff = towardAngle - backAngle;
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  const sign = diff >= 0 ? 1 : -1;
+  const entryAngle = backAngle - sign * halfGap;
+  const exitAngle = backAngle + sign * halfGap;
+  const sweep = -sign * (Math.PI * 2 - halfGap * 2);
+  return { entryAngle, exitAngle, sweep };
+}
+
+/**
  * Compiles a document into an ordered primitive list.
  * Order is deliberate: legs → race lines → marks → wind → labels,
  * so course lines always sit beneath marks and labels above everything.
@@ -110,10 +129,12 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   const taken: Box[] = [];
 
   /* ── Course legs ─────────────────────────────────────────────── */
-  // Direction of each leg, computed up front so a leg can check whether its
-  // neighbour on either end doubles straight back on it (e.g. the beat and
-  // run of a windward/leeward course share a bearing) — that case needs
-  // special handling below, or the rounding arc has nothing to sweep between.
+  // Course diagrams don't trace the whole leg — just a short arrow near
+  // each mark showing where the boat came from and where it's headed, with
+  // the space between left blank. Direction of each leg is computed up
+  // front so a leg can check whether its neighbour on either end doubles
+  // straight back on it (e.g. the beat and run of a windward/leeward course
+  // share a bearing), which needs special rounding treatment below.
   const anchors = doc.sequence.map((s) => anchorOf(doc, s.ref));
   const legDirs: ({ ux: number; uy: number } | null)[] = [];
   for (let i = 0; i < doc.sequence.length - 1; i++) {
@@ -129,6 +150,11 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     legDirs.push(len < 1 ? null : { ux: dx / len, uy: dy / len });
   }
   const REVERSAL_DOT = -0.9;
+  const ROUNDING_HALF_GAP = 0.8; // ~46°: how close a splayed entry/exit sit either side of the approach line
+
+  // Which side marks are left on when a straight beat/run leaves the
+  // rounding direction otherwise ambiguous (see isMarkReversal below).
+  const port = doc.settings.roundingDirection !== 'starboard';
 
   // A gate that a boat rounds and doubles back through (the common leeward
   // gate case) gets its own two-mark rendering below instead of the generic
@@ -139,9 +165,59 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     const outD = legDirs[idx];
     return !!inD && !!outD && inD.ux * outD.ux + inD.uy * outD.uy < REVERSAL_DOT;
   });
+  // Any other waypoint where the incoming and outgoing legs double back on
+  // each other — a windward or leeward mark on a straight beat/run being
+  // the classic case — is just as ambiguous as a gate reversal, but rounds
+  // a single mark rather than choosing between two, so which side it loops
+  // round is decided by the rounding-direction setting instead.
+  const isMarkReversal = doc.sequence.map((s, idx) => {
+    if (s.ref.type === 'gate') return false;
+    const inD = legDirs[idx - 1];
+    const outD = legDirs[idx];
+    return !!inD && !!outD && inD.ux * outD.ux + inD.uy * outD.uy < REVERSAL_DOT;
+  });
 
-  // Trim points on either side of a waypoint (null where the leg was skipped),
-  // kept so the rounding pass below can arc between them.
+  interface MarkGeom {
+    entryX: number;
+    entryY: number;
+    exitX: number;
+    exitY: number;
+    entryAngle: number;
+    sweep: number;
+    pad: number;
+  }
+  // Rounding geometry for each mark-reversal waypoint, precomputed once so
+  // both the leg loop (which needs the entry/exit points to touch down at)
+  // and the rounding loop (which needs the angle and sweep) can use it.
+  const markGeom: (MarkGeom | null)[] = doc.sequence.map((s, idx) => {
+    if (!isMarkReversal[idx]) return null;
+    const center = anchors[idx];
+    const inDir = legDirs[idx - 1];
+    if (!center || !inDir) return null;
+    const pad = center.r + 6;
+    const backAngle = Math.atan2(-inDir.uy, -inDir.ux);
+    // Rotate the approach direction 90° to the side a mark is left on when
+    // rounded to port — the other way round for a starboard-rounding course.
+    const bulge = port ? { x: -inDir.uy, y: inDir.ux } : { x: inDir.uy, y: -inDir.ux };
+    const bulgeAngle = Math.atan2(bulge.y, bulge.x);
+    const { entryAngle, exitAngle, sweep } = roundingSplay(backAngle, bulgeAngle, ROUNDING_HALF_GAP);
+    return {
+      entryX: center.x + Math.cos(entryAngle) * pad,
+      entryY: center.y + Math.sin(entryAngle) * pad,
+      exitX: center.x + Math.cos(exitAngle) * pad,
+      exitY: center.y + Math.sin(exitAngle) * pad,
+      entryAngle,
+      sweep,
+      pad,
+    };
+  });
+
+  const STUB = 28;
+
+  // Touch points on either side of a waypoint (null where the leg was
+  // skipped) — the plain pad edge for a normal rounding, or the splayed
+  // entry/exit point above for a reversal — kept so the rounding pass below
+  // can arc between them and a gate's fan-out can find its approach point.
   const legTrim: ({ x1: number; y1: number; x2: number; y2: number } | null)[] = [];
   for (let i = 0; i < doc.sequence.length - 1; i++) {
     const a = anchors[i];
@@ -152,8 +228,8 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
       continue;
     }
     const { ux, uy } = dir;
+    const ang = Math.atan2(uy, ux);
 
-    // Trim each end back to the edge of the mark so lines never run under a buoy.
     const startPad = a.r + 6;
     const endPad = b.r + 6;
     const len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -162,57 +238,40 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
       continue;
     }
 
-    // Nudge an end sideways, perpendicular to this leg, when the leg just
-    // before or after it comes back the way it went — without this the
-    // rounding arc's start and end angle land on the same point and the
-    // "arc" collapses to nothing instead of sweeping round the mark.
-    const px = -uy;
-    const py = ux;
-
-    let x1 = a.x + ux * startPad;
-    let y1 = a.y + uy * startPad;
-    const prevDir = legDirs[i - 1];
-    if (prevDir && !isGateReversal[i] && prevDir.ux * ux + prevDir.uy * uy < REVERSAL_DOT) {
-      x1 += px * startPad;
-      y1 += py * startPad;
-    }
-
-    let x2 = b.x - ux * endPad;
-    let y2 = b.y - uy * endPad;
-    const nextDir = legDirs[i + 1];
-    if (nextDir && !isGateReversal[i + 1] && nextDir.ux * ux + nextDir.uy * uy < REVERSAL_DOT) {
-      x2 += px * endPad;
-      y2 += py * endPad;
-    }
-
-    const trimmedLen = Math.hypot(x2 - x1, y2 - y1);
-    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const exitGeom = markGeom[i];
+    const x1 = exitGeom ? exitGeom.exitX : a.x + ux * startPad;
+    const y1 = exitGeom ? exitGeom.exitY : a.y + uy * startPad;
+    const entryGeom = markGeom[i + 1];
+    const x2 = entryGeom ? entryGeom.entryX : b.x - ux * endPad;
+    const y2 = entryGeom ? entryGeom.entryY : b.y - uy * endPad;
 
     // A leg leaving a gate that gets the two-mark rendering below is drawn
-    // entirely by that block instead — skip the plain line and arrows here.
+    // entirely by that block instead — skip the arrows here.
     if (!isGateReversal[i]) {
-      under.push({ k: 'line', x1, y1, x2, y2, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
-
-      // Real course diagrams don't put a single arrowhead in the dead centre
-      // of a leg — they show one arrow leaving the mark and another arriving
-      // at the next, so the direction reads clearly at both ends. Use the
-      // actual drawn line's direction (it can differ slightly from the raw
-      // a→b bearing when an end was nudged above) so arrowheads sit on it.
-      const dux = (x2 - x1) / trimmedLen;
-      const duy = (y2 - y1) / trimmedLen;
-
-      // Vary the offset a little per occurrence in the sequence — a repeated
-      // lap over the same two marks would otherwise place identical arrows
-      // on top of each other.
-      const jitter = (i % 3) * 7;
-      const arrowOffset = Math.min(30, trimmedLen * 0.3) + jitter;
-      if (trimmedLen < arrowOffset * 2 + 16) {
-        // Too short for two distinct arrows — fall back to one, centred.
-        const t = 0.42 + (i % 3) * 0.13;
-        under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, LEG_BLUE));
+      const gap = Math.hypot(x2 - x1, y2 - y1);
+      if (gap < STUB * 2 + 16) {
+        // Too short for two separate stubs — just join them with one arrow.
+        under.push({ k: 'line', x1, y1, x2, y2, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
+        under.push(arrowHead((x1 + x2) / 2, (y1 + y2) / 2, ang, 13, LEG_BLUE));
       } else {
-        under.push(arrowHead(x1 + dux * (arrowOffset - 13), y1 + duy * (arrowOffset - 13), ang, 13, LEG_BLUE));
-        under.push(arrowHead(x2 - dux * arrowOffset, y2 - duy * arrowOffset, ang, 13, LEG_BLUE));
+        const exitEndX = x1 + ux * STUB;
+        const exitEndY = y1 + uy * STUB;
+        under.push({ k: 'line', x1, y1, x2: exitEndX, y2: exitEndY, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
+        under.push(arrowHead(exitEndX, exitEndY, ang, 13, LEG_BLUE));
+
+        const entryStartX = x2 - ux * STUB;
+        const entryStartY = y2 - uy * STUB;
+        under.push({
+          k: 'line',
+          x1: entryStartX,
+          y1: entryStartY,
+          x2,
+          y2,
+          stroke: LEG_BLUE,
+          w: LEG_W,
+          cap: 'round',
+        });
+        under.push(arrowHead(x2 - ux * 13, y2 - uy * 13, ang, 13, LEG_BLUE));
       }
     }
 
@@ -220,7 +279,7 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   }
 
   // Round each waypoint the course passes through: swing an arc between the
-  // trimmed leg ends instead of letting both legs point straight at the mark.
+  // touch points above instead of letting both legs point straight at the mark.
   for (let i = 1; i < doc.sequence.length - 1; i++) {
     const prevLeg = legTrim[i - 1];
     const nextLeg = legTrim[i];
@@ -241,19 +300,11 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
       if (p && s && center && inDir && outDir) {
         const backAngle = Math.atan2(-inDir.uy, -inDir.ux);
         const outAngle = Math.atan2(outDir.uy, outDir.ux);
-        const halfGap = 0.8; // ~46°: how close the entry/exit sit either side of the approach line
 
         for (const M of [p, s]) {
           const pad = M.size + 6;
           const outwardAngle = Math.atan2(M.y - center.y, M.x - center.x);
-          let diff = outwardAngle - backAngle;
-          while (diff > Math.PI) diff -= 2 * Math.PI;
-          while (diff < -Math.PI) diff += 2 * Math.PI;
-          const sign = diff >= 0 ? 1 : -1;
-
-          const entryAngle = backAngle - sign * halfGap;
-          const exitAngle = backAngle + sign * halfGap;
-          const sweep = -sign * (Math.PI * 2 - halfGap * 2);
+          const { entryAngle, exitAngle, sweep } = roundingSplay(backAngle, outwardAngle, ROUNDING_HALF_GAP);
           under.push(sweepArc(M.x, M.y, pad, entryAngle, sweep, LEG_BLUE, LEG_W));
 
           const entryX = M.x + Math.cos(entryAngle) * pad;
@@ -277,11 +328,19 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
       continue;
     }
 
+    // A mark rounded off a straight beat/run: the entry and exit points
+    // were already splayed to the configured rounding side above, so sweep
+    // the long way between them instead of taking the (degenerate) short one.
+    const reversalGeom = markGeom[i];
+    if (reversalGeom) {
+      const m = anchors[i];
+      if (!m) continue;
+      under.push(sweepArc(m.x, m.y, reversalGeom.pad, reversalGeom.entryAngle, reversalGeom.sweep, LEG_BLUE, LEG_W));
+      continue;
+    }
+
     const m = anchors[i];
     if (!m) continue;
-    // Not just m.r + 6 — a reversed leg above nudges its end sideways, which
-    // puts it slightly further out than the plain pad, so the arc needs to
-    // match that radius or it won't meet the line it's supposed to join.
     const r = Math.hypot(prevLeg.x2 - m.x, prevLeg.y2 - m.y);
     const a1 = Math.atan2(prevLeg.y2 - m.y, prevLeg.x2 - m.x);
     const a2 = Math.atan2(nextLeg.y1 - m.y, nextLeg.x1 - m.x);

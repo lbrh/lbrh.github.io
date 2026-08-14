@@ -86,6 +86,8 @@ export interface CourseSettings {
   showGrid: boolean;
   snap: boolean;
   gridSize: number;
+  /** Which side a boat leaves marks on when a rounding's direction is otherwise ambiguous (e.g. a straight beat/run). Most courses round to port. */
+  roundingDirection: 'port' | 'starboard';
 }
 
 export interface CourseDoc {

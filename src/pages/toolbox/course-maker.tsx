@@ -575,6 +575,22 @@ export default function CourseMakerPage() {
                 className="tb-input w-16 px-2 py-1 text-[12px]"
               />
             </label>
+            <label className="flex items-center justify-between gap-2 py-1 text-[12px]">
+              Round marks to
+              <select
+                value={doc.settings.roundingDirection ?? 'port'}
+                onChange={(e) =>
+                  commit((d) => ({
+                    ...d,
+                    settings: { ...d.settings, roundingDirection: e.target.value as 'port' | 'starboard' },
+                  }))
+                }
+                className="tb-input px-2 py-1 text-[12px]"
+              >
+                <option value="port">Port</option>
+                <option value="starboard">Starboard</option>
+              </select>
+            </label>
           </div>
         </aside>
       </div>

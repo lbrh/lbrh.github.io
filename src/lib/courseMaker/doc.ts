@@ -44,6 +44,7 @@ export function emptyDoc(): CourseDoc {
       showGrid: true,
       snap: true,
       gridSize: 20,
+      roundingDirection: 'port',
     },
   };
 }
