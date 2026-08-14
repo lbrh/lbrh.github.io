@@ -105,49 +105,87 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   const taken: Box[] = [];
 
   /* ── Course legs ─────────────────────────────────────────────── */
+  // Direction of each leg, computed up front so a leg can check whether its
+  // neighbour on either end doubles straight back on it (e.g. the beat and
+  // run of a windward/leeward course share a bearing) — that case needs
+  // special handling below, or the rounding arc has nothing to sweep between.
+  const anchors = doc.sequence.map((s) => anchorOf(doc, s.ref));
+  const legDirs: ({ ux: number; uy: number } | null)[] = [];
+  for (let i = 0; i < doc.sequence.length - 1; i++) {
+    const a = anchors[i];
+    const b = anchors[i + 1];
+    if (!a || !b) {
+      legDirs.push(null);
+      continue;
+    }
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    legDirs.push(len < 1 ? null : { ux: dx / len, uy: dy / len });
+  }
+  const REVERSAL_DOT = -0.9;
+
   // Trim points on either side of a waypoint (null where the leg was skipped),
   // kept so the rounding pass below can arc between them.
   const legTrim: ({ x1: number; y1: number; x2: number; y2: number } | null)[] = [];
   for (let i = 0; i < doc.sequence.length - 1; i++) {
-    const a = anchorOf(doc, doc.sequence[i].ref);
-    const b = anchorOf(doc, doc.sequence[i + 1].ref);
-    if (!a || !b) {
+    const a = anchors[i];
+    const b = anchors[i + 1];
+    const dir = legDirs[i];
+    if (!a || !b || !dir) {
       legTrim.push(null);
       continue;
     }
-
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len = Math.hypot(dx, dy);
-    if (len < 1) {
-      legTrim.push(null);
-      continue;
-    }
-    const ux = dx / len;
-    const uy = dy / len;
+    const { ux, uy } = dir;
 
     // Trim each end back to the edge of the mark so lines never run under a buoy.
     const startPad = a.r + 6;
     const endPad = b.r + 6;
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
     if (startPad + endPad >= len) {
       legTrim.push(null);
       continue;
     }
 
-    const x1 = a.x + ux * startPad;
-    const y1 = a.y + uy * startPad;
-    const x2 = b.x - ux * endPad;
-    const y2 = b.y - uy * endPad;
-    const trimmedLen = len - startPad - endPad;
-    const ang = Math.atan2(dy, dx);
+    // Nudge an end sideways, perpendicular to this leg, when the leg just
+    // before or after it comes back the way it went — without this the
+    // rounding arc's start and end angle land on the same point and the
+    // "arc" collapses to nothing instead of sweeping round the mark.
+    const px = -uy;
+    const py = ux;
+
+    let x1 = a.x + ux * startPad;
+    let y1 = a.y + uy * startPad;
+    const prevDir = legDirs[i - 1];
+    if (prevDir && prevDir.ux * ux + prevDir.uy * uy < REVERSAL_DOT) {
+      x1 += px * startPad;
+      y1 += py * startPad;
+    }
+
+    let x2 = b.x - ux * endPad;
+    let y2 = b.y - uy * endPad;
+    const nextDir = legDirs[i + 1];
+    if (nextDir && nextDir.ux * ux + nextDir.uy * uy < REVERSAL_DOT) {
+      x2 += px * endPad;
+      y2 += py * endPad;
+    }
+
+    const trimmedLen = Math.hypot(x2 - x1, y2 - y1);
+    const ang = Math.atan2(y2 - y1, x2 - x1);
 
     under.push({ k: 'line', x1, y1, x2, y2, stroke: LEG_BLUE, w: LEG_W, cap: 'round' });
 
     // Real course diagrams don't put a single arrowhead in the dead centre of
     // a leg — they show one arrow leaving the mark and another arriving at
-    // the next, so the direction reads clearly at both ends. Stagger the
-    // offset a little per occurrence, since on a windward/leeward course the
-    // beat and run retrace the same line and would otherwise stack exactly.
+    // the next, so the direction reads clearly at both ends. Use the actual
+    // drawn line's direction (it can differ slightly from the raw a→b
+    // bearing when an end was nudged above) so the arrowheads sit on it.
+    const dux = (x2 - x1) / trimmedLen;
+    const duy = (y2 - y1) / trimmedLen;
+
+    // Vary the offset a little per occurrence in the sequence — a repeated
+    // lap over the same two marks would otherwise place identical arrows on
+    // top of each other.
     const jitter = (i % 3) * 7;
     const arrowOffset = Math.min(30, trimmedLen * 0.3) + jitter;
     if (trimmedLen < arrowOffset * 2 + 16) {
@@ -155,8 +193,8 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
       const t = 0.42 + (i % 3) * 0.13;
       under.push(arrowHead(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, ang, 13, LEG_BLUE));
     } else {
-      under.push(arrowHead(x1 + ux * (arrowOffset - 13), y1 + uy * (arrowOffset - 13), ang, 13, LEG_BLUE));
-      under.push(arrowHead(x2 - ux * arrowOffset, y2 - uy * arrowOffset, ang, 13, LEG_BLUE));
+      under.push(arrowHead(x1 + dux * (arrowOffset - 13), y1 + duy * (arrowOffset - 13), ang, 13, LEG_BLUE));
+      under.push(arrowHead(x2 - dux * arrowOffset, y2 - duy * arrowOffset, ang, 13, LEG_BLUE));
     }
 
     legTrim.push({ x1, y1, x2, y2 });
@@ -168,9 +206,12 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     const prevLeg = legTrim[i - 1];
     const nextLeg = legTrim[i];
     if (!prevLeg || !nextLeg) continue;
-    const m = anchorOf(doc, doc.sequence[i].ref);
+    const m = anchors[i];
     if (!m) continue;
-    const r = m.r + 6;
+    // Not just m.r + 6 — a reversed leg above nudges its end sideways, which
+    // puts it slightly further out than the plain pad, so the arc needs to
+    // match that radius or it won't meet the line it's supposed to join.
+    const r = Math.hypot(prevLeg.x2 - m.x, prevLeg.y2 - m.y);
     const a1 = Math.atan2(prevLeg.y2 - m.y, prevLeg.x2 - m.x);
     const a2 = Math.atan2(nextLeg.y1 - m.y, nextLeg.x1 - m.x);
     under.push(arcPrim(m.x, m.y, r, a1, a2, LEG_BLUE, LEG_W));
