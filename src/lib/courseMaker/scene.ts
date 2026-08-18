@@ -167,13 +167,30 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   // rounding direction otherwise ambiguous (see isMarkReversal below).
   const port = doc.settings.roundingDirection !== 'starboard';
 
+  // A mark immediately followed by its own offset mark is still one
+  // rounding, not two — the offset is a short hop taken right after
+  // bearing away, not a separate turn — so when checking whether a
+  // waypoint's rounding direction is otherwise ambiguous, look past an
+  // offset child to the leg that actually leaves the pair.
+  const outDirPastOffset = (idx: number) => {
+    const cur = doc.sequence[idx]?.ref;
+    const next = doc.sequence[idx + 1]?.ref;
+    if (cur?.type === 'mark' && next?.type === 'mark') {
+      const nextMark = findMark(doc, next.markId);
+      if (nextMark?.kind === 'offset' && nextMark.parentId === cur.markId) {
+        return legDirs[idx + 1] ?? null;
+      }
+    }
+    return legDirs[idx] ?? null;
+  };
+
   // A gate that a boat rounds and doubles back through (the common leeward
   // gate case) gets its own two-mark rendering below instead of the generic
   // single-arc rounding, so mark it here to skip in the loops that follow.
   const isGateReversal = doc.sequence.map((s, idx) => {
     if (s.ref.type !== 'gate') return false;
     const inD = legDirs[idx - 1];
-    const outD = legDirs[idx];
+    const outD = outDirPastOffset(idx);
     return !!inD && !!outD && inD.ux * outD.ux + inD.uy * outD.uy < REVERSAL_DOT;
   });
   // Any other waypoint where the incoming and outgoing legs double back on
@@ -184,7 +201,7 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
   const isMarkReversal = doc.sequence.map((s, idx) => {
     if (s.ref.type === 'gate') return false;
     const inD = legDirs[idx - 1];
-    const outD = legDirs[idx];
+    const outD = outDirPastOffset(idx);
     return !!inD && !!outD && inD.ux * outD.ux + inD.uy * outD.uy < REVERSAL_DOT;
   });
 
@@ -242,7 +259,10 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
     const ang = Math.atan2(uy, ux);
 
     const startPad = a.r + 6;
-    const endPad = b.r + 6;
+    // A gate that gets the two-mark rendering below forks its approach
+    // exactly on the line between the two marks, not a few pixels short of
+    // it — so run the incoming leg all the way in rather than padding off.
+    const endPad = isGateReversal[i + 1] ? 0 : b.r + 6;
     const len = Math.hypot(b.x - a.x, b.y - a.y);
     if (startPad + endPad >= len) {
       legTrim.push(null);
@@ -320,10 +340,13 @@ export function buildScene(doc: CourseDoc): { prims: Prim[]; bounds: Bounds } {
 
           const entryX = M.x + Math.cos(entryAngle) * pad;
           const entryY = M.y + Math.sin(entryAngle) * pad;
+          // Fork exactly on the line between the two marks — the incoming
+          // leg already runs all the way to this point (see the endPad
+          // above) so there's no gap before the split.
           under.push({
             k: 'line',
-            x1: prevLeg.x2,
-            y1: prevLeg.y2,
+            x1: center.x,
+            y1: center.y,
             x2: entryX,
             y2: entryY,
             stroke: LEG_BLUE,
