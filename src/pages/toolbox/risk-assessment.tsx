@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
 import { fetchLiveBomData, resetLiveBomCache, type LiveShippingRow } from "@/lib/liveBom";
 
-const LAT = -37.8136;
-const LON = 144.9631;
+const LAT = -37.889874;
+const LON = 144.937165;
 
 type Recommendation = "YES" | "MAYBE" | "NO";
 
@@ -34,8 +34,6 @@ type Result = {
   arrivals: LiveShippingRow[];
   departures: LiveShippingRow[];
 };
-
-const KMH_TO_KT = 0.539957;
 
 function WindChart({
   times,
@@ -160,11 +158,12 @@ export default function AutoRisk() {
     try {
       // minutely_15 covers all of these fields for this location, so the
       // whole forecast (not just wind) comes back at 15-minute steps
-      // instead of hourly.
+      // instead of hourly — same resolution and, via wind_speed_unit=kn,
+      // the same knots-direct-from-the-API approach as windStationsApi.ts.
       const forecastUrl =
         `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
         `&minutely_15=temperature_2m,wind_speed_10m,wind_gusts_10m,uv_index,weather_code` +
-        `&timezone=Australia%2FSydney&forecast_days=1`;
+        `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=1`;
       const waveUrl =
         `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}` +
         `&daily=wave_height_max&timezone=Australia%2FSydney&forecast_days=1`;
@@ -203,13 +202,13 @@ export default function AutoRisk() {
 
       const times: string[] = weather.minutely_15.time;
       const temps: number[] = weather.minutely_15.temperature_2m;
-      const windKmh: number[] = weather.minutely_15.wind_speed_10m;
-      const gustsKmh: number[] = weather.minutely_15.wind_gusts_10m;
+      const windKt: number[] = weather.minutely_15.wind_speed_10m;
+      const gustsKt: number[] = weather.minutely_15.wind_gusts_10m;
       const uv: number[] = weather.minutely_15.uv_index;
       const codes: number[] = weather.minutely_15.weather_code;
 
-      const windKnots = windKmh.map((w) => Math.round(w * KMH_TO_KT * 10) / 10);
-      const gustsKnots = gustsKmh.map((g) => Math.round(g * KMH_TO_KT * 10) / 10);
+      const windKnots = windKt.map((w) => Math.round(w * 10) / 10);
+      const gustsKnots = gustsKt.map((g) => Math.round(g * 10) / 10);
 
       const thunder = [95, 96, 99];
       // Each entry is a 15-minute slot now, not an hour, so 4 matching
