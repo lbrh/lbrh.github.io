@@ -26,11 +26,14 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
   // data, just resampled finer) rather than hourly — a real ~4x jump in
   // detail. Wave height has no minutely_15 variable (ocean current/sea
   // level only, per Open-Meteo's docs), so the marine call stays hourly.
+  // models=gem_seamless (Environment Canada's GEM) tracked closest to
+  // observed conditions for Port Phillip compared to Open-Meteo's other
+  // sources.
   const forecastUrl =
     `https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.lng}` +
     `&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
     `&minutely_15=wind_speed_10m,wind_gusts_10m,wind_direction_10m` +
-    `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=2`;
+    `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=2&models=gem_seamless`;
   const marineUrl =
     `https://marine-api.open-meteo.com/v1/marine?latitude=${station.lat}&longitude=${station.lng}` +
     `&hourly=wave_height&timezone=Australia%2FSydney&forecast_days=2`;

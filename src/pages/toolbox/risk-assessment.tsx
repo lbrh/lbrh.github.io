@@ -160,10 +160,13 @@ export default function AutoRisk() {
       // whole forecast (not just wind) comes back at 15-minute steps
       // instead of hourly — same resolution and, via wind_speed_unit=kn,
       // the same knots-direct-from-the-API approach as windStationsApi.ts.
+      // models=gem_seamless (Environment Canada's GEM) tracked closest to
+      // observed conditions for Port Phillip compared to Open-Meteo's
+      // other sources.
       const forecastUrl =
         `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}` +
         `&minutely_15=temperature_2m,wind_speed_10m,wind_gusts_10m,uv_index,weather_code` +
-        `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=1`;
+        `&wind_speed_unit=kn&timezone=Australia%2FSydney&forecast_days=1&models=gem_seamless`;
       const waveUrl =
         `https://marine-api.open-meteo.com/v1/marine?latitude=${LAT}&longitude=${LON}` +
         `&daily=wave_height_max&timezone=Australia%2FSydney&forecast_days=1`;
