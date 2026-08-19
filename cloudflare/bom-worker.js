@@ -48,6 +48,21 @@ const COMPASS_DEG = {
   W: 270, WNW: 292.5, NW: 315, NNW: 337.5,
 };
 
+function degToCompass(deg) {
+  const points = Object.keys(COMPASS_DEG);
+  const idx = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
+  return points[idx];
+}
+
+// Webb Dock isn't a BOM station — it's a privately operated sensor whose
+// readings OMC International republishes on a public Grafana instance for
+// Port of Melbourne. Same query shape as the browser devtools capture of
+// that dashboard, just re-hosted here for the same reason as the BOM
+// fetches: keep it server-side, off the browser, behind our own CORS.
+const WEBB_DOCK_URL = 'https://portweather-public.omcinternational.com/api/ds/query';
+const WEBB_DOCK_WIND_PATH = 'AU/VIC/Melbourne/Meteo/Wind/Measured/Webb Dock Failover';
+const WEBB_DOCK_METEO_PATH = 'AU/VIC/Melbourne/Meteo/Weather/Measured/Webb Dock Failover';
+
 // ---------------------------------------------------------------------
 // Timezone helpers — Workers' V8 runtime bundles ICU, so Intl with an
 // IANA zone name works without a timezone library.
@@ -76,15 +91,19 @@ function offsetSuffix(offsetMin) {
   return `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
 }
 
-// Formats "now" as Melbourne local time with its current UTC offset.
-function nowInMelbourne() {
-  const offsetMin = melbourneOffsetMinutes(new Date());
-  const local = new Date(Date.now() + offsetMin * 60000);
+// Formats a UTC instant as Melbourne local time with its current UTC offset.
+function toMelbourneISO(utcDate) {
+  const offsetMin = melbourneOffsetMinutes(utcDate);
+  const local = new Date(utcDate.getTime() + offsetMin * 60000);
   return (
     `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}` +
     `T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}:${pad(local.getUTCSeconds())}` +
     offsetSuffix(offsetMin)
   );
+}
+
+function nowInMelbourne() {
+  return toMelbourneISO(new Date());
 }
 
 // BOM's "local_date_time_full" is a naive Melbourne-local timestamp like
@@ -173,6 +192,79 @@ async function fetchStations() {
     }),
   );
   return stations;
+}
+
+function webbDockQuery(refId, sourcePath, sourceProperty, target) {
+  return {
+    sourcePath,
+    transformerType: 'MeasuredGenericPlot',
+    sourceProperty,
+    target,
+    refId,
+    type: 'timeseries',
+    datasourceId: 391,
+    userId: -1,
+  };
+}
+
+async function fetchWebbDock() {
+  try {
+    const to = new Date();
+    const from = new Date(to.getTime() - HISTORY_WINDOW_MS);
+    const res = await fetch(WEBB_DOCK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-grafana-org-id': '338' },
+      body: JSON.stringify({
+        from: from.toISOString(),
+        to: to.toISOString(),
+        queries: [
+          webbDockQuery('gust', WEBB_DOCK_WIND_PATH, 'wind_speed2', 'Wind Gust'),
+          webbDockQuery('speed', WEBB_DOCK_WIND_PATH, 'wind_speed1', 'Wind Speed'),
+          webbDockQuery('dir', WEBB_DOCK_WIND_PATH, 'wind_dir_deg', 'Direction'),
+          webbDockQuery('temp', WEBB_DOCK_METEO_PATH, 'temperature', 'Temperature'),
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    const seriesValues = (refId) => json?.results?.[refId]?.frames?.[0]?.data?.values;
+    const speed = seriesValues('speed');
+    const gust = seriesValues('gust');
+    const dir = seriesValues('dir');
+    const temp = seriesValues('temp');
+    if (!speed || !speed[0]?.length) return null;
+
+    const times = speed[0];
+    const history = [];
+    for (let i = 0; i < times.length; i++) {
+      const windKt = speed[1][i];
+      if (windKt == null) continue;
+      history.push({
+        time: toMelbourneISO(new Date(times[i])),
+        windKt,
+        gustKt: gust?.[1]?.[i] ?? windKt,
+        dirDeg: dir?.[1]?.[i] ?? null,
+      });
+    }
+    if (history.length === 0) return null;
+
+    const latest = history[history.length - 1];
+    const latestTemp = temp?.[1]?.length ? temp[1][temp[1].length - 1] : null;
+
+    return {
+      windKt: latest.windKt,
+      gustKt: latest.gustKt,
+      dirCompass: latest.dirDeg != null ? degToCompass(latest.dirDeg) : '',
+      dirDeg: latest.dirDeg,
+      airTemp: latestTemp,
+      observedAt: latest.time,
+      history,
+    };
+  } catch (e) {
+    console.error('webb dock fetch failed', e);
+    return null;
+  }
 }
 
 async function fetchWarnings() {
@@ -337,12 +429,14 @@ async function fetchShipping() {
 // ---------------------------------------------------------------------
 
 async function buildPayload() {
-  const [stations, warnings, forecastText, shipping] = await Promise.all([
+  const [stations, webbDock, warnings, forecastText, shipping] = await Promise.all([
     fetchStations(),
+    fetchWebbDock(),
     fetchWarnings(),
     fetchForecastText(),
     fetchShipping(),
   ]);
+  if (webbDock) stations['webb-dock'] = webbDock;
 
   return {
     generatedAt: nowInMelbourne(),

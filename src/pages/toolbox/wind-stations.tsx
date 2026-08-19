@@ -293,7 +293,7 @@ export default function WindStations() {
   return (
     <ToolboxShell
       title="Wind Stations"
-      description="Current wind speed, gusts and direction at seven reference points around Port Phillip, with a detailed 24-hour view for each."
+      description="Current wind speed, gusts and direction at eight reference points around Port Phillip, with a detailed 24-hour view for each."
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -302,7 +302,7 @@ export default function WindStations() {
             className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]"
             style={{ animationDelay: '0.04s' }}
           >
-            Wind speed, gusts and direction at seven points spread around Port Phillip, colour-coded by
+            Wind speed, gusts and direction at eight points spread around Port Phillip, colour-coded by
             strength — real BOM station readings where one exists, modelled estimates elsewhere. Select a
             card or a marker on the map for its full 24-hour forecast.
           </p>

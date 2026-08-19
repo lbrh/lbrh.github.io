@@ -59,4 +59,11 @@ export const WIND_STATIONS: WindStation[] = [
     lat: -37.3807,
     lng: 144.9654,
   },
+  {
+    id: 'webb-dock',
+    name: 'Webb Dock',
+    description: 'Container terminal at the mouth of the Yarra, Port of Melbourne (OMC International sensor).',
+    lat: -37.85,
+    lng: 144.9,
+  },
 ];
