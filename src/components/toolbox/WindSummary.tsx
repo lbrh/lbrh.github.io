@@ -59,17 +59,7 @@ export default function WindSummary() {
         </div>
       </div>
 
-      <div
-        className="wind-summary-grid mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3"
-        style={{ ['--wind-station-count' as string]: String(WIND_STATIONS.length) }}
-      >
-        <style jsx>{`
-          @media (min-width: 1024px) {
-            .wind-summary-grid {
-              grid-template-columns: repeat(var(--wind-station-count), minmax(0, 1fr));
-            }
-          }
-        `}</style>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {WIND_STATIONS.map((station) => {
           const state = states[station.id];
           const band = state?.status === 'ok' ? bandForGust(state.data.current.gust) : null;
