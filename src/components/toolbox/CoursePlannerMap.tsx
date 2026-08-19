@@ -1,17 +1,31 @@
-import { MapContainer, TileLayer, CircleMarker, Tooltip, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Tooltip, Polyline, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { CourseMark } from '@/data/longDistanceMarks';
+
+/** Invisible helper that reports map clicks back up while `active`. */
+function ClickCapture({ active, onPick }: { active: boolean; onPick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      if (active) onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
 
 export default function CoursePlannerMap({
   marks,
   route,
   onMarkClick,
   nautical = false,
+  placing = false,
+  onPlacePick,
 }: {
   marks: CourseMark[];
   route: string[];
   onMarkClick: (name: string) => void;
   nautical?: boolean;
+  placing?: boolean;
+  onPlacePick?: (lat: number, lng: number) => void;
 }) {
   const byName = new Map(marks.map((m) => [m.name, m]));
   const routeLatLngs = route
@@ -25,7 +39,7 @@ export default function CoursePlannerMap({
       zoom={9}
       scrollWheelZoom
       preferCanvas
-      style={{ height: '100%', width: '100%', background: '#eef1f4' }}
+      style={{ height: '100%', width: '100%', background: '#eef1f4', cursor: placing ? 'crosshair' : undefined }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -39,6 +53,7 @@ export default function CoursePlannerMap({
           crossOrigin="anonymous"
         />
       )}
+      {onPlacePick && <ClickCapture active={placing} onPick={onPlacePick} />}
 
       {routeLatLngs.length > 1 && (
         <Polyline
@@ -60,7 +75,7 @@ export default function CoursePlannerMap({
             pathOptions={{
               color: '#1b1f24',
               weight: active ? 2 : 1,
-              fillColor: active ? '#1a56a8' : '#8a929c',
+              fillColor: active ? '#1a56a8' : m.custom ? '#8b5cf6' : '#8a929c',
               fillOpacity: active ? 1 : 0.65,
             }}
             eventHandlers={{ click: () => onMarkClick(m.name) }}
@@ -69,6 +84,7 @@ export default function CoursePlannerMap({
               <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
                 {active ? `#${routeIndices.join(', #')} · ` : ''}
                 {m.name} — {m.description}
+                {m.custom ? ` (${m.lat.toFixed(4)}, ${m.lng.toFixed(4)})` : ''}
               </span>
             </Tooltip>
           </CircleMarker>

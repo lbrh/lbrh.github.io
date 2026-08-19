@@ -53,9 +53,18 @@ export default function CoursePlanner() {
   const [exportingPng, setExportingPng] = useState(false);
   const [exportError, setExportError] = useState('');
   const [nautical, setNautical] = useState(false);
+  const [customMarks, setCustomMarks] = useState<CourseMark[]>([]);
+  const [addingMark, setAddingMark] = useState(false);
+  const [placingMark, setPlacingMark] = useState(false);
+  const [newMarkName, setNewMarkName] = useState('');
+  const [newMarkLat, setNewMarkLat] = useState('');
+  const [newMarkLng, setNewMarkLng] = useState('');
+  const [markError, setMarkError] = useState('');
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
-  const byName = useMemo(() => new Map(LONG_DISTANCE_MARKS.map((m) => [m.name, m])), []);
+  const allMarks = useMemo(() => [...LONG_DISTANCE_MARKS, ...customMarks], [customMarks]);
+
+  const byName = useMemo(() => new Map(allMarks.map((m) => [m.name, m])), [allMarks]);
 
   const legs = useMemo(() => {
     const rows: { from: string; to: string; nm: number; magHdg: number }[] = [];
@@ -76,13 +85,57 @@ export default function CoursePlanner() {
 
   const totalNm = legs.reduce((s, l) => s + l.nm, 0);
 
-  const filtered = LONG_DISTANCE_MARKS.filter((m) =>
+  const filtered = allMarks.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const addMark = (name: string) => setRoute((r) => [...r, name]);
   const removeAt = (i: number) => setRoute((r) => r.filter((_, idx) => idx !== i));
   const clearRoute = () => setRoute([]);
+
+  const startAddingMark = () => {
+    setAddingMark(true);
+    setPlacingMark(false);
+    setNewMarkName('');
+    setNewMarkLat('');
+    setNewMarkLng('');
+    setMarkError('');
+  };
+
+  const cancelAddingMark = () => {
+    setAddingMark(false);
+    setPlacingMark(false);
+    setMarkError('');
+  };
+
+  const onPlacePick = (lat: number, lng: number) => {
+    setNewMarkLat(lat.toFixed(5));
+    setNewMarkLng(lng.toFixed(5));
+    setPlacingMark(false);
+  };
+
+  const confirmNewMark = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newMarkName.trim();
+    if (!name) {
+      setMarkError('Enter a name for the mark.');
+      return;
+    }
+    if (allMarks.some((m) => m.name.toLowerCase() === name.toLowerCase())) {
+      setMarkError('A mark with that name already exists.');
+      return;
+    }
+    const lat = Number(newMarkLat);
+    const lng = Number(newMarkLng);
+    if (!newMarkLat || !newMarkLng || Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setMarkError('Enter valid coordinates, or pick a point on the map.');
+      return;
+    }
+    setCustomMarks((prev) => [...prev, { name, description: 'Custom mark', light: '—', lat, lng, custom: true }]);
+    setAddingMark(false);
+    setPlacingMark(false);
+    setMarkError('');
+  };
 
   const safeName = () => routeName.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'course';
 
@@ -262,11 +315,71 @@ ${rtepts}
                 onClick={() => addMark(m.name)}
                 className="block w-full border-b border-[var(--tb-border)]/60 py-2 text-left text-[13px] transition hover:text-[var(--tb-accent)]"
               >
-                <span className="font-semibold">{m.name}</span>
-                <span className="block text-[11px] text-[var(--tb-text-muted)]">{m.description}</span>
+                <span className="font-semibold">
+                  {m.name}
+                  {m.custom && <span className="ml-1.5 text-[9px] uppercase tracking-wide text-[#8b5cf6]">Custom</span>}
+                </span>
+                <span className="block text-[11px] text-[var(--tb-text-muted)]">
+                  {m.description}
+                  {m.custom && ` · ${m.lat.toFixed(5)}, ${m.lng.toFixed(5)}`}
+                </span>
               </button>
             ))}
           </div>
+
+          <div className="tb-rule my-4" />
+
+          <label className="tb-eyebrow block">Custom mark</label>
+          {!addingMark ? (
+            <button onClick={startAddingMark} className="tb-btn-ghost mt-2 w-full px-3 py-2 text-xs">
+              + Add mark
+            </button>
+          ) : (
+            <form onSubmit={confirmNewMark} className="mt-2 space-y-2">
+              <input
+                type="text"
+                placeholder="Mark name"
+                value={newMarkName}
+                onChange={(e) => setNewMarkName(e.target.value)}
+                className="tb-input w-full px-2 py-1.5 text-xs"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Lat"
+                  value={newMarkLat}
+                  onChange={(e) => setNewMarkLat(e.target.value)}
+                  className="tb-input w-full px-2 py-1.5 text-xs"
+                />
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="Lng"
+                  value={newMarkLng}
+                  onChange={(e) => setNewMarkLng(e.target.value)}
+                  className="tb-input w-full px-2 py-1.5 text-xs"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setPlacingMark((p) => !p)}
+                className={`w-full px-2 py-1.5 text-[11px] ${placingMark ? 'tb-btn' : 'tb-btn-ghost'}`}
+              >
+                {placingMark ? 'Click the map to set the point…' : 'Pick point on map'}
+              </button>
+              {markError && <p className="text-[11px] text-[var(--tb-danger)]">{markError}</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="submit" className="tb-btn px-2 py-1.5 text-xs">
+                  Add
+                </button>
+                <button type="button" onClick={cancelAddingMark} className="tb-btn-ghost px-2 py-1.5 text-xs">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="tb-rule my-4" />
 
@@ -331,10 +444,12 @@ ${rtepts}
           </div>
           <div ref={mapWrapRef} className="h-[420px] sm:h-[480px]">
             <CoursePlannerMap
-              marks={LONG_DISTANCE_MARKS}
+              marks={allMarks}
               route={route}
               onMarkClick={addMark}
               nautical={nautical}
+              placing={placingMark}
+              onPlacePick={onPlacePick}
             />
           </div>
         </div>

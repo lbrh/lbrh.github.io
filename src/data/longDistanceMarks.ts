@@ -4,6 +4,8 @@ export type CourseMark = {
   light: string;
   lat: number;
   lng: number;
+  /** True for marks added by the user during a Course Planner session. */
+  custom?: boolean;
 };
 
 // Wider bay / long-distance course marks, incl. Western Port approaches.
