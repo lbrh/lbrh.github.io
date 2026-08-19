@@ -10,6 +10,7 @@ const CATEGORIES = Object.keys(MARK_CATEGORY_COLOUR) as Mark['category'][];
 export default function BayMarks() {
   const [search, setSearch] = useState('');
   const [active, setActive] = useState<Set<Mark['category']>>(new Set());
+  const [nautical, setNautical] = useState(false);
 
   const filtered = useMemo(() => {
     return PORT_PHILLIP_MARKS.filter((m) => {
@@ -101,8 +102,20 @@ export default function BayMarks() {
         </div>
 
         {/* Map */}
-        <div className="tb-card h-[420px] overflow-hidden sm:h-[560px]">
-          <BayMarksMap marks={filtered} />
+        <div className="tb-card overflow-hidden">
+          <div className="flex items-center justify-end border-b border-[var(--tb-border)] px-3 py-2">
+            <label className="flex items-center gap-1.5 text-[11px]">
+              <input
+                type="checkbox"
+                checked={nautical}
+                onChange={(e) => setNautical(e.target.checked)}
+              />
+              Nautical chart overlay
+            </label>
+          </div>
+          <div className="h-[420px] sm:h-[520px]">
+            <BayMarksMap marks={filtered} nautical={nautical} />
+          </div>
         </div>
       </div>
     </ToolboxShell>

@@ -52,6 +52,7 @@ export default function CoursePlanner() {
   const [routeName, setRouteName] = useState('Long Distance Race');
   const [exportingPng, setExportingPng] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [nautical, setNautical] = useState(false);
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
   const byName = useMemo(() => new Map(LONG_DISTANCE_MARKS.map((m) => [m.name, m])), []);
@@ -317,12 +318,25 @@ ${rtepts}
         </div>
 
         {/* Map */}
-        <div ref={mapWrapRef} className="tb-card h-[420px] overflow-hidden sm:h-[520px]">
-          <CoursePlannerMap
-            marks={LONG_DISTANCE_MARKS}
-            route={route}
-            onMarkClick={addMark}
-          />
+        <div className="tb-card overflow-hidden">
+          <div className="flex items-center justify-end border-b border-[var(--tb-border)] px-3 py-2">
+            <label className="flex items-center gap-1.5 text-[11px]">
+              <input
+                type="checkbox"
+                checked={nautical}
+                onChange={(e) => setNautical(e.target.checked)}
+              />
+              Nautical chart overlay
+            </label>
+          </div>
+          <div ref={mapWrapRef} className="h-[420px] sm:h-[480px]">
+            <CoursePlannerMap
+              marks={LONG_DISTANCE_MARKS}
+              route={route}
+              onMarkClick={addMark}
+              nautical={nautical}
+            />
+          </div>
         </div>
       </div>
 

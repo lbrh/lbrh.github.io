@@ -6,10 +6,12 @@ export default function CoursePlannerMap({
   marks,
   route,
   onMarkClick,
+  nautical = false,
 }: {
   marks: CourseMark[];
   route: string[];
   onMarkClick: (name: string) => void;
+  nautical?: boolean;
 }) {
   const byName = new Map(marks.map((m) => [m.name, m]));
   const routeLatLngs = route
@@ -30,6 +32,13 @@ export default function CoursePlannerMap({
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         crossOrigin="anonymous"
       />
+      {nautical && (
+        <TileLayer
+          attribution='Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
+          url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
+          crossOrigin="anonymous"
+        />
+      )}
 
       {routeLatLngs.length > 1 && (
         <Polyline
