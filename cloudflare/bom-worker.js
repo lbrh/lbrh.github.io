@@ -59,9 +59,20 @@ function degToCompass(deg) {
 // Port of Melbourne. Same query shape as the browser devtools capture of
 // that dashboard, just re-hosted here for the same reason as the BOM
 // fetches: keep it server-side, off the browser, behind our own CORS.
-const WEBB_DOCK_URL = 'https://portweather-public.omcinternational.com/api/ds/query';
+//
+// Fawkner Beacon has a failover sensor on the same OMC feed, which reports
+// more often than the BOM station — used as the primary source for that
+// station, with the BOM fetch above (BOM_STATIONS.fawkner) kept as a
+// fallback if the OMC feed is ever unreachable.
+const OMC_URL = 'https://portweather-public.omcinternational.com/api/ds/query';
 const WEBB_DOCK_WIND_PATH = 'AU/VIC/Melbourne/Meteo/Wind/Measured/Webb Dock Failover';
 const WEBB_DOCK_METEO_PATH = 'AU/VIC/Melbourne/Meteo/Weather/Measured/Webb Dock Failover';
+const FAWKNER_WIND_PATH = 'AU/VIC/Melbourne/Meteo/Wind/Measured/Fawkner Beacon Failover';
+const FAWKNER_METEO_PATH = 'AU/VIC/Melbourne/Meteo/Weather/Measured/Fawkner Beacon Failover';
+// Geelong and Breakwater Pier only publish a wind path on the public feed —
+// no matching Meteo/Weather path was found, so these two have no temperature.
+const GEELONG_WIND_PATH = 'AU/VIC/Geelong/Meteo/All_Raw/Measured/Wilson Spit Beacon 2';
+const BREAKWATER_PIER_WIND_PATH = 'AU/VIC/Melbourne/Meteo/Wind/Measured/Breakwater Pier Failover';
 
 // ---------------------------------------------------------------------
 // Timezone helpers — Workers' V8 runtime bundles ICU, so Intl with an
@@ -194,7 +205,7 @@ async function fetchStations() {
   return stations;
 }
 
-function webbDockQuery(refId, sourcePath, sourceProperty, target) {
+function omcQuery(refId, sourcePath, sourceProperty, target) {
   return {
     sourcePath,
     transformerType: 'MeasuredGenericPlot',
@@ -207,23 +218,21 @@ function webbDockQuery(refId, sourcePath, sourceProperty, target) {
   };
 }
 
-async function fetchWebbDock() {
+async function fetchOmcStation(label, windPath, meteoPath) {
   try {
     const to = new Date();
     const from = new Date(to.getTime() - HISTORY_WINDOW_MS);
-    const res = await fetch(WEBB_DOCK_URL, {
+    const queries = [
+      omcQuery('gust', windPath, 'wind_speed2', 'Wind Gust'),
+      omcQuery('speed', windPath, 'wind_speed1', 'Wind Speed'),
+      omcQuery('dir', windPath, 'wind_dir_deg', 'Direction'),
+    ];
+    if (meteoPath) queries.push(omcQuery('temp', meteoPath, 'temperature', 'Temperature'));
+
+    const res = await fetch(OMC_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-grafana-org-id': '338' },
-      body: JSON.stringify({
-        from: from.toISOString(),
-        to: to.toISOString(),
-        queries: [
-          webbDockQuery('gust', WEBB_DOCK_WIND_PATH, 'wind_speed2', 'Wind Gust'),
-          webbDockQuery('speed', WEBB_DOCK_WIND_PATH, 'wind_speed1', 'Wind Speed'),
-          webbDockQuery('dir', WEBB_DOCK_WIND_PATH, 'wind_dir_deg', 'Direction'),
-          webbDockQuery('temp', WEBB_DOCK_METEO_PATH, 'temperature', 'Temperature'),
-        ],
-      }),
+      body: JSON.stringify({ from: from.toISOString(), to: to.toISOString(), queries }),
     });
     if (!res.ok) return null;
     const json = await res.json();
@@ -232,7 +241,7 @@ async function fetchWebbDock() {
     const speed = seriesValues('speed');
     const gust = seriesValues('gust');
     const dir = seriesValues('dir');
-    const temp = seriesValues('temp');
+    const temp = meteoPath ? seriesValues('temp') : null;
     if (!speed || !speed[0]?.length) return null;
 
     const times = speed[0];
@@ -262,7 +271,7 @@ async function fetchWebbDock() {
       history,
     };
   } catch (e) {
-    console.error('webb dock fetch failed', e);
+    console.error(`${label} fetch failed`, e);
     return null;
   }
 }
@@ -429,14 +438,24 @@ async function fetchShipping() {
 // ---------------------------------------------------------------------
 
 async function buildPayload() {
-  const [stations, webbDock, warnings, forecastText, shipping] = await Promise.all([
-    fetchStations(),
-    fetchWebbDock(),
-    fetchWarnings(),
-    fetchForecastText(),
-    fetchShipping(),
-  ]);
+  const [stations, webbDock, fawknerOmc, geelong, breakwaterPier, warnings, forecastText, shipping] =
+    await Promise.all([
+      fetchStations(),
+      fetchOmcStation('webb dock', WEBB_DOCK_WIND_PATH, WEBB_DOCK_METEO_PATH),
+      fetchOmcStation('fawkner beacon', FAWKNER_WIND_PATH, FAWKNER_METEO_PATH),
+      fetchOmcStation('geelong', GEELONG_WIND_PATH),
+      fetchOmcStation('breakwater pier', BREAKWATER_PIER_WIND_PATH),
+      fetchWarnings(),
+      fetchForecastText(),
+      fetchShipping(),
+    ]);
   if (webbDock) stations['webb-dock'] = webbDock;
+  // BOM's Fawkner reading (from fetchStations above) stays in place as a
+  // fallback if the OMC feed is unreachable; otherwise the more frequent
+  // OMC reading takes over.
+  if (fawknerOmc) stations['fawkner'] = fawknerOmc;
+  if (geelong) stations['geelong'] = geelong;
+  if (breakwaterPier) stations['breakwater-pier'] = breakwaterPier;
 
   return {
     generatedAt: nowInMelbourne(),

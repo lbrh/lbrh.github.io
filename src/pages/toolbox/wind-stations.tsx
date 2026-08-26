@@ -319,7 +319,7 @@ export default function WindStations() {
       </div>
 
       <div
-        className="tb-anim-rise mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4"
+        className="tb-anim-rise mt-7 grid grid-cols-2 gap-3 sm:grid-cols-5"
         style={{ animationDelay: '0.08s' }}
       >
         {WIND_STATIONS.map((station) => {

@@ -66,4 +66,18 @@ export const WIND_STATIONS: WindStation[] = [
     lat: -37.85,
     lng: 144.9,
   },
+  {
+    id: 'geelong',
+    name: 'Geelong (Wilson Spit)',
+    description: 'Wilson Spit Beacon, Corio Bay shipping channel, Geelong (OMC International sensor).',
+    lat: -38.12,
+    lng: 144.37,
+  },
+  {
+    id: 'breakwater-pier',
+    name: 'Breakwater Pier',
+    description: 'Port of Melbourne, near the Yarra mouth (OMC International sensor).',
+    lat: -37.8643,
+    lng: 144.9178,
+  },
 ];

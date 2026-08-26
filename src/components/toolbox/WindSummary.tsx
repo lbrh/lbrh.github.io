@@ -59,7 +59,7 @@ export default function WindSummary() {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {WIND_STATIONS.map((station) => {
           const state = states[station.id];
           const band = state?.status === 'ok' ? bandForGust(state.data.current.gust) : null;
