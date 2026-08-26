@@ -6,9 +6,13 @@ export type WindStation = {
   lng: number;
 };
 
-// Approximate positions of BOM automatic weather stations spread around
-// Port Phillip, chosen to give a spread of readings across the bay.
-// Reference only — coordinates are indicative, not surveyed.
+// Approximate positions of wind stations spread around Port Phillip, chosen
+// to give a spread of readings across the bay. Reference only — coordinates
+// are indicative, not surveyed.
+//
+// Ordered ports/OMC-sourced stations first, then BOM-sourced stations, so
+// the grid on the wind stations page and homepage strip (both 5 columns)
+// roughly groups each source onto its own row.
 export const WIND_STATIONS: WindStation[] = [
   {
     id: 'fawkner',
@@ -16,6 +20,27 @@ export const WIND_STATIONS: WindStation[] = [
     description: 'Entrance to the Port of Melbourne shipping channel, central bay.',
     lat: -37.9483,
     lng: 144.927,
+  },
+  {
+    id: 'webb-dock',
+    name: 'Webb Dock',
+    description: 'Container terminal at the mouth of the Yarra, Port of Melbourne (OMC International sensor).',
+    lat: -37.85,
+    lng: 144.9,
+  },
+  {
+    id: 'geelong',
+    name: 'Geelong (Wilson Spit)',
+    description: 'Wilson Spit Beacon, Corio Bay shipping channel, Geelong (OMC International sensor).',
+    lat: -38.12,
+    lng: 144.37,
+  },
+  {
+    id: 'breakwater-pier',
+    name: 'Breakwater Pier',
+    description: 'Port of Melbourne, near the Yarra mouth (OMC International sensor).',
+    lat: -37.8643,
+    lng: 144.9178,
   },
   {
     id: 'frankston',
@@ -58,26 +83,5 @@ export const WIND_STATIONS: WindStation[] = [
     description: 'Gap in the Great Dividing Range north of Melbourne — an early indicator of a wind change reaching the bay.',
     lat: -37.3807,
     lng: 144.9654,
-  },
-  {
-    id: 'webb-dock',
-    name: 'Webb Dock',
-    description: 'Container terminal at the mouth of the Yarra, Port of Melbourne (OMC International sensor).',
-    lat: -37.85,
-    lng: 144.9,
-  },
-  {
-    id: 'geelong',
-    name: 'Geelong (Wilson Spit)',
-    description: 'Wilson Spit Beacon, Corio Bay shipping channel, Geelong (OMC International sensor).',
-    lat: -38.12,
-    lng: 144.37,
-  },
-  {
-    id: 'breakwater-pier',
-    name: 'Breakwater Pier',
-    description: 'Port of Melbourne, near the Yarra mouth (OMC International sensor).',
-    lat: -37.8643,
-    lng: 144.9178,
   },
 ];
