@@ -2,6 +2,8 @@
 
 A self-hosted, vanilla-JS widget that replaces the [PPNYC document hub prototype](https://ppnyc-document-hub.owen-church64.chatgpt.site/#links-needed). One file (`widget.js`) is embedded on all three club sites — RMYS, RYCV, and HBYC — and detects which club's domain it's running on to show the right branding and documents.
 
+It renders as a full-width page section (hero, document-sequence walkthrough, common-documents grid, other-club expander, status note) with the same descriptive copy and section structure as the original prototype — not a small sidebar card. Point a club's "Race Documents" page at the embed snippet below and it fills the page.
+
 ## Embed on a club site
 
 Paste this wherever the hub should appear (WordPress custom HTML block, GoDaddy HTML widget, Squarespace code block, etc.):
@@ -75,6 +77,18 @@ Update the hex codes directly in `CLUBS` if a club rebrands — no other change 
 ## Own club first, others on demand
 
 Each site shows its own club's four-step flow by default (matching what that club's sailors actually need). Below the shared documents there's a collapsed **"Racing at another club? View their sailing instructions"** section — expanding it reveals the other two clubs' NOR annexure and SSI supplement, for members racing a passage or event hosted by a different club. Nothing needs configuring per site for this; `render()` always shows `CLUB_ORDER` minus whichever club is currently detected.
+
+## Page structure
+
+Top to bottom, `render()` builds:
+
+1. **Hero** — club badge, "Every PPNYC race document, in one place." headline, one-line description naming the club.
+2. **Document sequence** — the four-step walkthrough (PPNYC NOR → host annexure → Standard SI → host supplement), each step as a numbered card with a short description of what that document covers.
+3. **Common documents** — a 2×2 grid of the four program-wide documents, same descriptive copy.
+4. **Racing elsewhere** — collapsed by default; expands into the other two clubs' annexure/supplement cards.
+5. **Document status** — a line that counts how many of the six documents relevant to this club are still `#links-needed`, plus the `updatedAt` date from `documents.json`.
+
+Descriptive copy for each document (the sentence under its title) lives in `COMMON_DESC` / `CLUB_DOC_DESC` near the top of `widget.js`, not in `documents.json` — it's fixed editorial copy, not per-club data.
 
 ## Preview / testing
 

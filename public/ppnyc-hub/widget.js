@@ -4,10 +4,11 @@
  *   <div id="ppnyc-document-hub"></div>
  *   <script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
  *
- * Detects which club's site it's running on (by hostname) and renders that
- * club's four-step race documentation flow, plus the shared PPNYC documents.
- * Document links live in documents.json next to this file, so updating one
- * JSON file updates all three club sites instantly (no redeploy needed).
+ * Full-page race documentation hub. Detects which club's site it's running
+ * on (by hostname) and renders that club's own document sequence front and
+ * centre, with the other two clubs' sailing instructions available behind
+ * an expander. Document links live in documents.json next to this file, so
+ * updating one JSON file updates all three club sites instantly.
  *
  * Manual override for staging/testing: add data-club="rmys|rycv|hbyc" to
  * either the script tag or the container div.
@@ -41,6 +42,18 @@
   };
 
   var CLUB_ORDER = ['rmys', 'rycv', 'hbyc'];
+
+  // Static descriptive copy, mirrors the original PPNYC Document Hub prototype.
+  var COMMON_DESC = {
+    nor: 'The governing Notice of Race for the combined program.',
+    raceCalendar: 'The shared scheduling reference for all host clubs.',
+    ssi: 'The common sailing instructions used across the series.',
+    courseBook: 'The shared course and mark reference.'
+  };
+  var CLUB_DOC_DESC = {
+    annexure: 'Host-club Notice of Race annexure.',
+    supplement: 'Host-club supplementary sailing instructions.'
+  };
 
   // Used if documents.json can't be fetched (offline, blocked, malformed).
   var FALLBACK_DOCS = {
@@ -163,33 +176,45 @@
     return node;
   }
 
-  function docNode(doc) {
-    if (isPlaceholder(doc && doc.url)) {
-      return el('span', { class: 'ppnyc-hub__pending' }, [
-        doc ? doc.label : '',
-        el('em', {}, ['Coming soon'])
-      ]);
-    }
-    return el(
-      'a',
-      {
-        class: 'ppnyc-hub__link',
-        href: doc.url,
-        target: '_blank',
-        rel: 'noopener noreferrer'
-      },
-      [
-        el('span', { class: 'ppnyc-hub__link-label' }, [doc.label]),
-        el('span', { class: 'ppnyc-hub__link-arrow', 'aria-hidden': 'true' }, ['↓'])
-      ]
+  function docCard(doc, description) {
+    var pending = isPlaceholder(doc && doc.url);
+    var card = el(
+      'div',
+      { class: 'ppnyc-hub__card' + (pending ? ' ppnyc-hub__card--pending' : '') },
+      []
     );
+    card.appendChild(el('p', { class: 'ppnyc-hub__card-title' }, [doc ? doc.label : '']));
+    if (description) {
+      card.appendChild(el('p', { class: 'ppnyc-hub__card-desc' }, [description]));
+    }
+    if (pending) {
+      card.appendChild(el('span', { class: 'ppnyc-hub__card-status' }, ['Coming soon']));
+    } else {
+      card.appendChild(
+        el(
+          'a',
+          { class: 'ppnyc-hub__card-link', href: doc.url, target: '_blank', rel: 'noopener noreferrer' },
+          ['View document ', el('span', { 'aria-hidden': 'true' }, ['↓'])]
+        )
+      );
+    }
+    return card;
   }
 
-  function stepNode(index, doc) {
-    return el('li', { class: 'ppnyc-hub__step' }, [
-      el('span', { class: 'ppnyc-hub__step-num' }, [String(index)]),
-      docNode(doc)
+  function stepRow(num, doc, description) {
+    return el('div', { class: 'ppnyc-hub__step' }, [
+      el('div', { class: 'ppnyc-hub__step-num' }, [String(num)]),
+      docCard(doc, description)
     ]);
+  }
+
+  function sectionHeading(kicker, title, desc) {
+    var nodes = [
+      el('p', { class: 'ppnyc-hub__kicker' }, [kicker]),
+      el('h2', { class: 'ppnyc-hub__section-title' }, [title])
+    ];
+    if (desc) nodes.push(el('p', { class: 'ppnyc-hub__section-desc' }, [desc]));
+    return nodes;
   }
 
   function injectStyles() {
@@ -199,42 +224,60 @@
     style.textContent =
       '.ppnyc-hub{--ppnyc-accent:#0f5ea8;--ppnyc-accent-dark:#0a3d70;' +
       'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;' +
-      'max-width:720px;margin:0 auto;background:#fff;border:1px solid #e2e5e9;border-radius:12px;' +
-      'box-shadow:0 1px 3px rgba(15,23,42,.06);overflow:hidden;color:#1a2129;box-sizing:border-box}' +
+      'max-width:1120px;margin:0 auto;width:100%;background:#fff;color:#16202c;box-sizing:border-box}' +
       '.ppnyc-hub *{box-sizing:border-box}' +
-      '.ppnyc-hub__header{padding:20px 24px;background:linear-gradient(135deg,var(--ppnyc-accent),var(--ppnyc-accent-dark));color:#fff}' +
-      '.ppnyc-hub__eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin:0 0 4px}' +
-      '.ppnyc-hub__title{font-size:20px;font-weight:700;margin:0;line-height:1.3}' +
-      '.ppnyc-hub__body{padding:20px 24px}' +
-      '.ppnyc-hub__section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5b6472;margin:0 0 12px}' +
-      '.ppnyc-hub__steps{list-style:none;margin:0 0 24px;padding:0;display:flex;flex-direction:column;gap:8px}' +
-      '.ppnyc-hub__step{display:flex;align-items:center;gap:12px}' +
-      '.ppnyc-hub__step-num{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--ppnyc-accent);color:#fff;' +
-      'font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}' +
-      '.ppnyc-hub__grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}' +
-      '.ppnyc-hub__link{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;' +
-      'padding:10px 14px;border-radius:8px;background:#f5f7fa;border:1px solid #e2e5e9;color:#1a2129;' +
-      'text-decoration:none;font-size:14px;font-weight:600;transition:background .15s,border-color .15s}' +
-      '.ppnyc-hub__link:hover{background:#eef2f6;border-color:var(--ppnyc-accent)}' +
-      '.ppnyc-hub__link-arrow{color:var(--ppnyc-accent);font-weight:700}' +
-      '.ppnyc-hub__pending{flex:1 1 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;' +
-      'padding:10px 14px;border-radius:8px;background:#f9f9f9;border:1px dashed #d7dbe0;color:#8a93a0;font-size:14px;font-weight:600}' +
-      '.ppnyc-hub__pending em{font-style:normal;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#aab1bb}' +
-      '.ppnyc-hub__footer{padding:12px 24px;border-top:1px solid #edf0f3;font-size:12px;color:#8a93a0}' +
-      '.ppnyc-hub__picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}' +
-      '.ppnyc-hub__picker-btn{padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.6);' +
-      'background:rgba(255,255,255,.12);color:#fff;font-size:13px;font-weight:600;cursor:pointer}' +
-      '.ppnyc-hub__picker-btn:hover{background:rgba(255,255,255,.22)}' +
-      '.ppnyc-hub__loading{padding:32px 24px;text-align:center;color:#8a93a0;font-size:14px}' +
-      '.ppnyc-hub__other{margin-top:24px;border-top:1px solid #edf0f3;padding-top:16px}' +
-      '.ppnyc-hub__other-summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;' +
-      'font-size:13px;font-weight:700;color:var(--ppnyc-accent)}' +
-      '.ppnyc-hub__other-summary::-webkit-details-marker{display:none}' +
-      '.ppnyc-hub__other-caret{transition:transform .15s;color:var(--ppnyc-accent)}' +
-      '.ppnyc-hub__other[open] .ppnyc-hub__other-caret{transform:rotate(180deg)}' +
-      '.ppnyc-hub__other-body{display:flex;flex-direction:column;gap:16px;margin-top:16px}' +
-      '.ppnyc-hub__other-club-name{font-size:12px;font-weight:700;color:#5b6472;margin:0 0 8px}' +
-      '@media (max-width:480px){.ppnyc-hub__grid{grid-template-columns:1fr}}';
+      '.ppnyc-hub__bar{height:5px;background:linear-gradient(90deg,var(--ppnyc-accent),var(--ppnyc-accent-dark))}' +
+      '.ppnyc-hub__hero{padding:48px 28px 40px}' +
+      '.ppnyc-hub__eyebrow-badge{display:inline-block;padding:5px 12px;border-radius:999px;' +
+      'background:var(--ppnyc-accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em}' +
+      '.ppnyc-hub__hero-title{font-size:clamp(26px,4vw,38px);font-weight:800;line-height:1.15;' +
+      'margin:16px 0 14px;color:#0f172a;max-width:820px}' +
+      '.ppnyc-hub__hero-desc{font-size:16px;line-height:1.65;color:#475569;margin:0;max-width:640px}' +
+      '.ppnyc-hub__section{padding:36px 28px;border-top:1px solid #edf0f3}' +
+      '.ppnyc-hub__kicker{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;' +
+      'color:var(--ppnyc-accent);margin:0}' +
+      '.ppnyc-hub__section-title{font-size:22px;font-weight:800;color:#0f172a;margin:8px 0 8px}' +
+      '.ppnyc-hub__section-desc{font-size:14px;line-height:1.6;color:#64748b;margin:0 0 24px;max-width:640px}' +
+      '.ppnyc-hub__steps{display:flex;flex-direction:column;gap:16px}' +
+      '.ppnyc-hub__step{display:flex;align-items:flex-start;gap:16px}' +
+      '.ppnyc-hub__step-num{flex:0 0 auto;width:32px;height:32px;border-radius:50%;background:var(--ppnyc-accent);' +
+      'color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}' +
+      '.ppnyc-hub__step .ppnyc-hub__card{flex:1 1 auto}' +
+      '.ppnyc-hub__doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}' +
+      '.ppnyc-hub__card{border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;background:#fff;' +
+      'display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s}' +
+      '.ppnyc-hub__card:hover{border-color:var(--ppnyc-accent);box-shadow:0 4px 14px rgba(15,23,42,.06)}' +
+      '.ppnyc-hub__card--pending{border-style:dashed;background:#fafafa}' +
+      '.ppnyc-hub__card-title{font-size:15px;font-weight:700;color:#0f172a;margin:0}' +
+      '.ppnyc-hub__card-desc{font-size:13px;line-height:1.5;color:#64748b;margin:0}' +
+      '.ppnyc-hub__card-link{margin-top:4px;font-size:13px;font-weight:700;color:var(--ppnyc-accent);' +
+      'text-decoration:none;display:inline-flex;align-items:center;gap:4px}' +
+      '.ppnyc-hub__card-link:hover{text-decoration:underline}' +
+      '.ppnyc-hub__card-status{margin-top:4px;font-size:11px;font-weight:800;letter-spacing:.05em;' +
+      'text-transform:uppercase;color:#94a3b8}' +
+      '.ppnyc-hub__toggle{background:none;border:0;padding:0;width:100%;text-align:left;cursor:pointer;' +
+      'font:inherit;color:inherit;display:block}' +
+      '.ppnyc-hub__toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}' +
+      '.ppnyc-hub__toggle-title{font-size:22px;font-weight:800;color:#0f172a;margin:0}' +
+      '.ppnyc-hub__toggle-caret{color:var(--ppnyc-accent);font-size:16px;flex:0 0 auto;transition:transform .15s}' +
+      '.ppnyc-hub__toggle[aria-expanded="true"] .ppnyc-hub__toggle-caret{transform:rotate(180deg)}' +
+      '.ppnyc-hub__toggle .ppnyc-hub__section-desc{margin-top:8px}' +
+      '.ppnyc-hub__other-body{margin-top:24px;display:flex;flex-direction:column;gap:28px}' +
+      '.ppnyc-hub__other-club-name{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;' +
+      'color:#334155;margin:0 0 10px}' +
+      '.ppnyc-hub__status-msg{font-size:14px;color:#334155;margin:8px 0 4px;font-weight:600}' +
+      '.ppnyc-hub__status-updated{font-size:12px;color:#94a3b8;margin:0}' +
+      '.ppnyc-hub__club-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;' +
+      'margin-top:32px;max-width:820px}' +
+      '.ppnyc-hub__club-card{border:2px solid var(--card-accent,var(--ppnyc-accent));border-radius:12px;' +
+      'padding:20px;background:#fff;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;' +
+      'transition:transform .15s,box-shadow .15s;font:inherit}' +
+      '.ppnyc-hub__club-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(15,23,42,.1)}' +
+      '.ppnyc-hub__club-card-code{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--card-accent,var(--ppnyc-accent))}' +
+      '.ppnyc-hub__club-card-name{font-size:16px;font-weight:700;color:#0f172a}' +
+      '.ppnyc-hub__loading{padding:96px 28px;text-align:center;color:#94a3b8;font-size:15px}' +
+      '@media (max-width:640px){.ppnyc-hub__doc-grid{grid-template-columns:1fr}' +
+      '.ppnyc-hub__hero{padding:36px 20px 32px}.ppnyc-hub__section{padding:28px 20px}}';
     document.head.appendChild(style);
   }
 
@@ -254,13 +297,27 @@
     container.className = 'ppnyc-hub';
     resetAccent(container);
     container.innerHTML = '';
-    var header = el('div', { class: 'ppnyc-hub__header' }, [
-      el('p', { class: 'ppnyc-hub__eyebrow' }, ['PPNYC Document Hub']),
-      el('h2', { class: 'ppnyc-hub__title' }, ['Select your club to view race documents'])
+    container.appendChild(el('div', { class: 'ppnyc-hub__bar' }, []));
+
+    var hero = el('div', { class: 'ppnyc-hub__hero' }, [
+      el('span', { class: 'ppnyc-hub__eyebrow-badge' }, ['PPNYC']),
+      el('h1', { class: 'ppnyc-hub__hero-title' }, ['Every PPNYC race document, in one place.']),
+      el('p', { class: 'ppnyc-hub__hero-desc' }, [
+        'Select your club to see its Notice of Race, sailing instructions and supplementary documents.'
+      ])
     ]);
-    var picker = el('div', { class: 'ppnyc-hub__picker' }, []);
+
+    var grid = el('div', { class: 'ppnyc-hub__club-grid' }, []);
     CLUB_ORDER.forEach(function (key) {
-      var btn = el('button', { class: 'ppnyc-hub__picker-btn', type: 'button' }, [CLUBS[key].short]);
+      var club = CLUBS[key];
+      var btn = el(
+        'button',
+        { type: 'button', class: 'ppnyc-hub__club-card', style: '--card-accent:' + club.accent },
+        [
+          el('span', { class: 'ppnyc-hub__club-card-code' }, [club.short]),
+          el('span', { class: 'ppnyc-hub__club-card-name' }, [club.name])
+        ]
+      );
       btn.addEventListener('click', function () {
         try {
           window.sessionStorage.setItem(SESSION_KEY, key);
@@ -269,37 +326,79 @@
         }
         onPick(key);
       });
-      picker.appendChild(btn);
+      grid.appendChild(btn);
     });
-    header.appendChild(picker);
-    container.appendChild(header);
+    hero.appendChild(grid);
+    container.appendChild(hero);
   }
 
-  function otherClubsNode(otherClubKeys, docs) {
-    var details = el('details', { class: 'ppnyc-hub__other' }, []);
-    var summary = el('summary', { class: 'ppnyc-hub__other-summary' }, [
-      el('span', {}, ['Racing at another club? View their sailing instructions']),
-      el('span', { class: 'ppnyc-hub__other-caret', 'aria-hidden': 'true' }, ['▾'])
+  function otherClubsSection(otherKeys, docs) {
+    var section = el('div', { class: 'ppnyc-hub__section' }, []);
+    var toggle = el('button', { type: 'button', class: 'ppnyc-hub__toggle', 'aria-expanded': 'false' }, [
+      el('span', { class: 'ppnyc-hub__kicker' }, ['RACING ELSEWHERE']),
+      el('span', { class: 'ppnyc-hub__toggle-row' }, [
+        el('span', { class: 'ppnyc-hub__toggle-title' }, ['Sailing instructions for other host clubs']),
+        el('span', { class: 'ppnyc-hub__toggle-caret', 'aria-hidden': 'true' }, ['▾'])
+      ]),
+      el('span', { class: 'ppnyc-hub__section-desc' }, [
+        "Racing an event hosted by a different club? Open their annexure and supplementary sailing instructions below."
+      ])
     ]);
-    details.appendChild(summary);
 
     var body = el('div', { class: 'ppnyc-hub__other-body' }, []);
-    otherClubKeys.forEach(function (key) {
+    body.hidden = true;
+    otherKeys.forEach(function (key) {
       var club = CLUBS[key];
       var clubDocs = docs.clubs[key];
       body.appendChild(
-        el('div', { class: 'ppnyc-hub__other-club' }, [
-          el('p', { class: 'ppnyc-hub__other-club-name' }, [club.name]),
-          el('div', { class: 'ppnyc-hub__grid' }, [
-            docNode(clubDocs.annexure),
-            docNode(clubDocs.supplement)
+        el('div', {}, [
+          el('p', { class: 'ppnyc-hub__other-club-name' }, [club.name + ' (' + club.short + ')']),
+          el('div', { class: 'ppnyc-hub__doc-grid' }, [
+            docCard(clubDocs.annexure, CLUB_DOC_DESC.annexure),
+            docCard(clubDocs.supplement, CLUB_DOC_DESC.supplement)
           ])
         ])
       );
     });
-    details.appendChild(body);
 
-    return details;
+    toggle.addEventListener('click', function () {
+      var open = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      body.hidden = open;
+    });
+
+    section.appendChild(toggle);
+    section.appendChild(body);
+    return section;
+  }
+
+  function statusSection(docs, clubKey) {
+    var club = CLUBS[clubKey];
+    var clubDocs = docs.clubs[clubKey];
+    var relevant = [
+      docs.common.nor,
+      docs.common.raceCalendar,
+      docs.common.ssi,
+      docs.common.courseBook,
+      clubDocs.annexure,
+      clubDocs.supplement
+    ];
+    var pending = relevant.filter(function (d) {
+      return isPlaceholder(d && d.url);
+    }).length;
+
+    var section = el('div', { class: 'ppnyc-hub__section' }, [
+      el('p', { class: 'ppnyc-hub__kicker' }, ['DOCUMENT STATUS'])
+    ]);
+    var msg =
+      pending > 0
+        ? pending + ' of ' + relevant.length + ' ' + club.short + ' documents are still being finalised.'
+        : 'All ' + club.short + ' documents are live.';
+    section.appendChild(el('p', { class: 'ppnyc-hub__status-msg' }, [msg]));
+    if (docs.updatedAt) {
+      section.appendChild(el('p', { class: 'ppnyc-hub__status-updated' }, ['Last updated ' + docs.updatedAt]));
+    }
+    return section;
   }
 
   function render(container, clubKey, docs) {
@@ -309,47 +408,68 @@
     container.style.setProperty('--ppnyc-accent-dark', club.accentDark);
     container.innerHTML = '';
 
+    container.appendChild(el('div', { class: 'ppnyc-hub__bar' }, []));
+
     container.appendChild(
-      el('div', { class: 'ppnyc-hub__header' }, [
-        el('p', { class: 'ppnyc-hub__eyebrow' }, ['PPNYC Document Hub — ' + club.short]),
-        el('h2', { class: 'ppnyc-hub__title' }, [club.name + ' Race Documentation'])
+      el('div', { class: 'ppnyc-hub__hero' }, [
+        el('span', { class: 'ppnyc-hub__eyebrow-badge' }, ['PPNYC · ' + club.short]),
+        el('h1', { class: 'ppnyc-hub__hero-title' }, ['Every PPNYC race document, in one place.']),
+        el('p', { class: 'ppnyc-hub__hero-desc' }, [
+          'Start with the common documents, then open the ' +
+            club.name +
+            ' annexure and supplementary sailing instructions.'
+        ])
       ])
     );
 
-    var body = el('div', { class: 'ppnyc-hub__body' }, []);
     var clubDocs = docs.clubs[clubKey];
 
-    body.appendChild(el('p', { class: 'ppnyc-hub__section-title' }, ['Start here — in order']));
-    var steps = el('ol', { class: 'ppnyc-hub__steps' }, [
-      stepNode(1, docs.common.nor),
-      stepNode(2, clubDocs.annexure),
-      stepNode(3, docs.common.ssi),
-      stepNode(4, clubDocs.supplement)
-    ]);
-    body.appendChild(steps);
-
-    body.appendChild(el('p', { class: 'ppnyc-hub__section-title' }, ['Also useful']));
-    body.appendChild(
-      el('div', { class: 'ppnyc-hub__grid' }, [
-        docNode(docs.common.raceCalendar),
-        docNode(docs.common.courseBook)
+    var stepsSection = el(
+      'div',
+      { class: 'ppnyc-hub__section' },
+      sectionHeading(
+        'FOLLOW THE DOCUMENT SEQUENCE',
+        'Document sequence',
+        'Open these four documents in order for any ' + club.short + ' race.'
+      )
+    );
+    stepsSection.appendChild(
+      el('div', { class: 'ppnyc-hub__steps' }, [
+        stepRow(1, docs.common.nor, COMMON_DESC.nor),
+        stepRow(2, clubDocs.annexure, CLUB_DOC_DESC.annexure),
+        stepRow(3, docs.common.ssi, COMMON_DESC.ssi),
+        stepRow(4, clubDocs.supplement, CLUB_DOC_DESC.supplement)
       ])
     );
+    container.appendChild(stepsSection);
+
+    var commonSection = el(
+      'div',
+      { class: 'ppnyc-hub__section' },
+      sectionHeading(
+        'SHARED ACROSS THE PROGRAM',
+        'Common documents',
+        'These documents apply across RMYS, RYCV and HBYC events.'
+      )
+    );
+    commonSection.appendChild(
+      el('div', { class: 'ppnyc-hub__doc-grid' }, [
+        docCard(docs.common.nor, COMMON_DESC.nor),
+        docCard(docs.common.raceCalendar, COMMON_DESC.raceCalendar),
+        docCard(docs.common.ssi, COMMON_DESC.ssi),
+        docCard(docs.common.courseBook, COMMON_DESC.courseBook)
+      ])
+    );
+    container.appendChild(commonSection);
 
     var otherClubs = CLUB_ORDER.filter(function (key) {
       return key !== clubKey;
     });
     if (otherClubs.length) {
-      body.appendChild(otherClubsNode(otherClubs, docs));
+      container.appendChild(otherClubsSection(otherClubs, docs));
     }
 
-    container.appendChild(body);
-
-    if (docs.updatedAt) {
-      container.appendChild(
-        el('div', { class: 'ppnyc-hub__footer' }, ['Documents last updated ' + docs.updatedAt])
-      );
-    }
+    container.appendChild(statusSection(docs, clubKey));
   }
 
   function findContainer(scriptEl) {
