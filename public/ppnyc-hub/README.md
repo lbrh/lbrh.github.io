@@ -1,0 +1,87 @@
+# PPNYC Document Hub widget
+
+A self-hosted, vanilla-JS widget that replaces the [PPNYC document hub prototype](https://ppnyc-document-hub.owen-church64.chatgpt.site/#links-needed). One file (`widget.js`) is embedded on all three club sites — RMYS, RYCV, and HBYC — and detects which club's domain it's running on to show the right branding and documents.
+
+## Embed on a club site
+
+Paste this wherever the hub should appear (WordPress custom HTML block, GoDaddy HTML widget, Squarespace code block, etc.):
+
+```html
+<div id="ppnyc-document-hub"></div>
+<script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
+```
+
+The script auto-detects the club from `window.location.hostname`:
+
+| Club | Domain(s) matched |
+|---|---|
+| RMYS — Royal Melbourne Yacht Squadron | `rmys.com.au` |
+| RYCV — Royal Yacht Club of Victoria | `rycv.com.au` |
+| HBYC — Hobsons Bay Yacht Club | `hbyc.org.au` |
+
+If a page is served from a domain the widget doesn't recognise (staging, a members' subdomain, etc.), it shows a small club picker instead of guessing. You can also force a club explicitly, which is useful for staging or a page that needs a specific club's documents regardless of domain:
+
+```html
+<div id="ppnyc-document-hub" data-club="rmys"></div>
+<script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
+```
+
+If you omit the `<div>` entirely, the script inserts one automatically right where the `<script>` tag sits — so the embed genuinely works as two lines.
+
+## Updating documents
+
+All ten document URLs (4 shared + 2 per club × 3 clubs) live in [`documents.json`](documents.json), not in the widget code. Edit that file and push — every club site picks up the change on next page load (the widget fetches with `cache: 'no-store'`, so there's no waiting on browser/CDN caching).
+
+Until the real files are ready, leave a URL as `"#links-needed"` (or blank) and the widget renders a "Coming soon" pill instead of a dead link.
+
+```json
+{
+  "updatedAt": "2026-08-26",
+  "common": {
+    "nor": { "label": "PPNYC Notice of Race", "url": "https://.../nor.pdf" },
+    "raceCalendar": { "label": "Combined Race Calendar", "url": "..." },
+    "ssi": { "label": "PPNYC Standard Sailing Instructions", "url": "..." },
+    "courseBook": { "label": "SSI Attachment 1 — Course Book", "url": "..." }
+  },
+  "clubs": {
+    "rmys": { "annexure": { "label": "...", "url": "..." }, "supplement": { "label": "...", "url": "..." } },
+    "rycv": { "...": "..." },
+    "hbyc": { "...": "..." }
+  }
+}
+```
+
+### Swapping in Google Sheets / Airtable / Supabase later
+
+`documents.json` is deliberately just a static file fetched by URL — that's the whole "API." If a club wants to manage links themselves without touching GitHub:
+
+- **Google Sheets**: publish the sheet as JSON (via Sheets API or a tool like sheet.best) and change the one `fetch()` URL built in `fetchDocs()` in `widget.js` to point at it, keeping the same `{ updatedAt, common, clubs }` shape.
+- **Airtable / Supabase**: same idea — point `fetchDocs()` at the table's REST endpoint and shape the response the same way, or add a small transform.
+
+No other part of the widget needs to change; it doesn't care where the JSON came from, only that it matches the shape above.
+
+## Branding
+
+Each club gets its own accent colour, set in `CLUBS` at the top of `widget.js` (`accent` / `accentDark`). Current values are sampled from each club's own site (header/nav bar + crest):
+
+| Club | Accent | Source |
+|---|---|---|
+| RMYS | `#e31b2c` (red) | Crest colour + "Racing" banner on [rmys.com.au](https://rmys.com.au/) |
+| RYCV | `#1a2b5d` (navy) | Top nav bar on [rycv.com.au](https://rycv.com.au/) |
+| HBYC | `#0e193e` (navy) | Site header on [hbyc.org.au](https://hbyc.org.au/) |
+
+Update the hex codes directly in `CLUBS` if a club rebrands — no other change needed.
+
+## Own club first, others on demand
+
+Each site shows its own club's four-step flow by default (matching what that club's sailors actually need). Below the shared documents there's a collapsed **"Racing at another club? View their sailing instructions"** section — expanding it reveals the other two clubs' NOR annexure and SSI supplement, for members racing a passage or event hosted by a different club. Nothing needs configuring per site for this; `render()` always shows `CLUB_ORDER` minus whichever club is currently detected.
+
+## Preview / testing
+
+Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club variants side by side and grab the exact embed snippet. It loads the real `widget.js` and `documents.json`, so it reflects production behaviour — not a mockup.
+
+## Files
+
+- `widget.js` — the embeddable widget. No dependencies, no build step.
+- `documents.json` — the single source of truth for document links. Edit this to update all three club sites.
+- `demo.html` — local preview harness with a club switcher.

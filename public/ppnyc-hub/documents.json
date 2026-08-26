@@ -1,0 +1,53 @@
+{
+  "updatedAt": "2026-08-26",
+  "common": {
+    "nor": {
+      "label": "PPNYC Notice of Race",
+      "url": "#links-needed"
+    },
+    "raceCalendar": {
+      "label": "Combined Race Calendar",
+      "url": "#links-needed"
+    },
+    "ssi": {
+      "label": "PPNYC Standard Sailing Instructions",
+      "url": "#links-needed"
+    },
+    "courseBook": {
+      "label": "SSI Attachment 1 — Course Book",
+      "url": "#links-needed"
+    }
+  },
+  "clubs": {
+    "rmys": {
+      "annexure": {
+        "label": "RMYS NOR Annexure",
+        "url": "#links-needed"
+      },
+      "supplement": {
+        "label": "RMYS SSI Supplement",
+        "url": "#links-needed"
+      }
+    },
+    "rycv": {
+      "annexure": {
+        "label": "RYCV NOR Annexure",
+        "url": "#links-needed"
+      },
+      "supplement": {
+        "label": "RYCV SSI Supplement",
+        "url": "#links-needed"
+      }
+    },
+    "hbyc": {
+      "annexure": {
+        "label": "HBYC NOR Annexure",
+        "url": "#links-needed"
+      },
+      "supplement": {
+        "label": "HBYC SSI Supplement",
+        "url": "#links-needed"
+      }
+    }
+  }
+}

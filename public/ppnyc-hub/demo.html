@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PPNYC Document Hub — widget preview</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 40px 16px;
+  }
+  .demo-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .demo-heading {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .demo-heading h1 {
+    font-size: 20px;
+    margin: 0 0 8px;
+  }
+  .demo-heading p {
+    color: #5b6472;
+    font-size: 14px;
+    margin: 0;
+  }
+  .demo-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .demo-tabs button {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid #d7dbe0;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .demo-tabs button.active {
+    background: #1a2129;
+    color: #fff;
+    border-color: #1a2129;
+  }
+  .demo-code {
+    max-width: 720px;
+    margin: 32px auto 0;
+    background: #1a2129;
+    color: #d7dbe0;
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="demo-wrap">
+    <div class="demo-heading">
+      <h1>PPNYC Document Hub — widget preview</h1>
+      <p>This page loads the real widget.js/documents.json used in production. Switch clubs below to preview each club's branding (domain auto-detection only kicks in on the real club domains).</p>
+    </div>
+    <div class="demo-tabs">
+      <button type="button" data-club="rmys" class="active">RMYS</button>
+      <button type="button" data-club="rycv">RYCV</button>
+      <button type="button" data-club="hbyc">HBYC</button>
+      <button type="button" data-club="">Auto-detect / picker</button>
+    </div>
+
+    <div id="ppnyc-document-hub" data-club="rmys"></div>
+  </div>
+
+  <div class="demo-code">
+    <div>&lt;div id="ppnyc-document-hub"&gt;&lt;/div&gt;</div>
+    <div>&lt;script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer&gt;&lt;/script&gt;</div>
+  </div>
+
+  <script>
+    var buttons = document.querySelectorAll('.demo-tabs button');
+    var container = document.getElementById('ppnyc-document-hub');
+
+    function loadWidget() {
+      container.innerHTML = '';
+      var existing = document.getElementById('ppnyc-hub-script');
+      if (existing) existing.remove();
+      var s = document.createElement('script');
+      s.id = 'ppnyc-hub-script';
+      s.src = 'widget.js?_=' + Date.now();
+      document.body.appendChild(s);
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var club = btn.getAttribute('data-club');
+        if (club) {
+          container.setAttribute('data-club', club);
+          try { sessionStorage.removeItem('ppnycHubClub'); } catch (e) {}
+        } else {
+          container.removeAttribute('data-club');
+          try { sessionStorage.removeItem('ppnycHubClub'); } catch (e) {}
+        }
+        loadWidget();
+      });
+    });
+
+    loadWidget();
+  </script>
+</body>
+</html>
