@@ -454,9 +454,7 @@
     );
     commonSection.appendChild(
       el('div', { class: 'ppnyc-hub__doc-grid' }, [
-        docCard(docs.common.nor, COMMON_DESC.nor),
         docCard(docs.common.raceCalendar, COMMON_DESC.raceCalendar),
-        docCard(docs.common.ssi, COMMON_DESC.ssi),
         docCard(docs.common.courseBook, COMMON_DESC.courseBook)
       ])
     );
