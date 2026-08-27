@@ -229,10 +229,8 @@
       '.ppnyc-hub *{box-sizing:border-box}' +
       '.ppnyc-hub__bar{height:5px;background:linear-gradient(90deg,var(--ppnyc-accent),var(--ppnyc-accent-dark))}' +
       '.ppnyc-hub__hero{padding:48px 28px 40px}' +
-      '.ppnyc-hub__eyebrow-badge{display:inline-block;padding:5px 12px;border-radius:999px;' +
-      'background:var(--ppnyc-accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em}' +
       '.ppnyc-hub__hero-title{font-size:clamp(26px,4vw,38px);font-weight:800;line-height:1.15;' +
-      'margin:16px 0 14px;color:#0f172a;max-width:820px}' +
+      'margin:0 0 14px;color:#0f172a;max-width:820px}' +
       '.ppnyc-hub__hero-desc{font-size:16px;line-height:1.65;color:#475569;margin:0;max-width:640px}' +
       '.ppnyc-hub__section{padding:36px 28px;border-top:1px solid #edf0f3}' +
       '.ppnyc-hub__kicker{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;' +
@@ -301,7 +299,6 @@
     container.appendChild(el('div', { class: 'ppnyc-hub__bar' }, []));
 
     var hero = el('div', { class: 'ppnyc-hub__hero' }, [
-      el('span', { class: 'ppnyc-hub__eyebrow-badge' }, ['PPNYC']),
       el('h1', { class: 'ppnyc-hub__hero-title' }, ['Every PPNYC race document, in one place.']),
       el('p', { class: 'ppnyc-hub__hero-desc' }, [
         'Select your club to see its Notice of Race, sailing instructions and supplementary documents.'
@@ -412,7 +409,6 @@
 
     container.appendChild(
       el('div', { class: 'ppnyc-hub__hero' }, [
-        el('span', { class: 'ppnyc-hub__eyebrow-badge' }, ['PPNYC · ' + club.short]),
         el('h1', { class: 'ppnyc-hub__hero-title' }, ['Every PPNYC race document, in one place.']),
         el('p', { class: 'ppnyc-hub__hero-desc' }, [
           'Start with the common documents, then open the ' +
