@@ -262,9 +262,9 @@
       '.ppnyc-hub__toggle[aria-expanded="true"] .ppnyc-hub__toggle-caret{transform:rotate(180deg)}' +
       '.ppnyc-hub__toggle .ppnyc-hub__section-desc{margin-top:8px}' +
       '.ppnyc-hub__other-body{margin-top:24px;display:flex;flex-direction:column;gap:28px}' +
+      '.ppnyc-hub__other-body[hidden]{display:none}' +
       '.ppnyc-hub__other-club-name{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;' +
       'color:#334155;margin:0 0 10px}' +
-      '.ppnyc-hub__status-msg{font-size:14px;color:#334155;margin:8px 0 4px;font-weight:600}' +
       '.ppnyc-hub__status-updated{font-size:12px;color:#94a3b8;margin:0}' +
       '.ppnyc-hub__club-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;' +
       'margin-top:32px;max-width:820px}' +
@@ -370,32 +370,11 @@
     return section;
   }
 
-  function statusSection(docs, clubKey) {
-    var club = CLUBS[clubKey];
-    var clubDocs = docs.clubs[clubKey];
-    var relevant = [
-      docs.common.nor,
-      docs.common.raceCalendar,
-      docs.common.courseBook,
-      clubDocs.annexure,
-      clubDocs.supplement
-    ];
-    var pending = relevant.filter(function (d) {
-      return isPlaceholder(d && d.url);
-    }).length;
-
-    var section = el('div', { class: 'ppnyc-hub__section' }, [
-      el('p', { class: 'ppnyc-hub__kicker' }, ['DOCUMENT STATUS'])
+  function updatedFooter(docs) {
+    if (!docs.updatedAt) return null;
+    return el('div', { class: 'ppnyc-hub__section' }, [
+      el('p', { class: 'ppnyc-hub__status-updated' }, ['Last updated ' + docs.updatedAt])
     ]);
-    var msg =
-      pending > 0
-        ? pending + ' of ' + relevant.length + ' ' + club.short + ' documents are still being finalised.'
-        : 'All ' + club.short + ' documents are live.';
-    section.appendChild(el('p', { class: 'ppnyc-hub__status-msg' }, [msg]));
-    if (docs.updatedAt) {
-      section.appendChild(el('p', { class: 'ppnyc-hub__status-updated' }, ['Last updated ' + docs.updatedAt]));
-    }
-    return section;
   }
 
   function render(container, clubKey, docs) {
@@ -462,7 +441,8 @@
       container.appendChild(otherClubsSection(otherClubs, docs));
     }
 
-    container.appendChild(statusSection(docs, clubKey));
+    var footer = updatedFooter(docs);
+    if (footer) container.appendChild(footer);
   }
 
   function findContainer(scriptEl) {
