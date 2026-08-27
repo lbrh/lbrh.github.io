@@ -2,7 +2,7 @@
  * PPNYC Document Hub widget
  * Embed with:
  *   <div id="ppnyc-document-hub"></div>
- *   <script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
+ *   <script src="https://lbrh.space/ppnyc-hub/widget.js" defer></script>
  *
  * Full-page race documentation hub. Detects which club's site it's running
  * on (by hostname) and renders that club's own document sequence front and

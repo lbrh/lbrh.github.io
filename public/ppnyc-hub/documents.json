@@ -3,46 +3,46 @@
   "common": {
     "nor": {
       "label": "PPNYC Notice of Race",
-      "url": "https://lbrh.github.io/ppnyc-hub/documents/ppnyc-nor.pdf"
+      "url": "https://lbrh.space/ppnyc-hub/documents/ppnyc-nor.pdf"
     },
     "raceCalendar": {
       "label": "Combined Race Calendar",
-      "url": "https://lbrh.github.io/ppnyc-hub/documents/ppnyc-race-calendar.pdf"
+      "url": "https://lbrh.space/ppnyc-hub/documents/ppnyc-race-calendar.pdf"
     },
     "courseBook": {
       "label": "Combined Course Book",
-      "url": "https://lbrh.github.io/ppnyc-hub/documents/ppnyc-course-book.pdf"
+      "url": "https://lbrh.space/ppnyc-hub/documents/ppnyc-course-book.pdf"
     }
   },
   "clubs": {
     "rmys": {
       "annexure": {
         "label": "RMYS NOR Annexure",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/rmys-nor-annexure.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/rmys-nor-annexure.pdf"
       },
       "supplement": {
         "label": "RMYS Standard & Supplementary Sailing Instructions",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/rmys-sailing-instructions.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/rmys-sailing-instructions.pdf"
       }
     },
     "rycv": {
       "annexure": {
         "label": "RYCV NOR Annexure",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/rycv-nor-annexure.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/rycv-nor-annexure.pdf"
       },
       "supplement": {
         "label": "RYCV Standard & Supplementary Sailing Instructions",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/rycv-sailing-instructions.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/rycv-sailing-instructions.pdf"
       }
     },
     "hbyc": {
       "annexure": {
         "label": "HBYC NOR Annexure",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/hbyc-nor-annexure.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/hbyc-nor-annexure.pdf"
       },
       "supplement": {
         "label": "HBYC Standard & Supplementary Sailing Instructions",
-        "url": "https://lbrh.github.io/ppnyc-hub/documents/hbyc-sailing-instructions.pdf"
+        "url": "https://lbrh.space/ppnyc-hub/documents/hbyc-sailing-instructions.pdf"
       }
     }
   }

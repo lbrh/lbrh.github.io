@@ -10,8 +10,10 @@ Paste this wherever the hub should appear (WordPress custom HTML block, GoDaddy 
 
 ```html
 <div id="ppnyc-document-hub"></div>
-<script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
+<script src="https://lbrh.space/ppnyc-hub/widget.js" defer></script>
 ```
+
+**Always use `lbrh.space`, never `lbrh.github.io`.** `lbrh.github.io` is this site's raw GitHub Pages address; `lbrh.space` is the custom domain it's actually served under, and `lbrh.github.io` 301-redirects to it. That redirect response has no CORS header, so a foreign-origin page (any real club site) that fetches `documents.json` through it gets blocked by CORS and the widget silently falls back to "Coming soon" placeholders — it looks like the documents were never wired up, when actually it's just the wrong host in the `<script src>`. Loading `widget.js` itself still works either way (the browser follows the redirect for a plain script load), so this bug only shows up in the document data, which is what makes it easy to miss.
 
 The script auto-detects the club from `window.location.hostname`:
 
@@ -25,7 +27,7 @@ If a page is served from a domain the widget doesn't recognise (staging, a membe
 
 ```html
 <div id="ppnyc-document-hub" data-club="rmys"></div>
-<script src="https://lbrh.github.io/ppnyc-hub/widget.js" defer></script>
+<script src="https://lbrh.space/ppnyc-hub/widget.js" defer></script>
 ```
 
 If you omit the `<div>` entirely, the script inserts one automatically right where the `<script>` tag sits — so the embed genuinely works as two lines.
@@ -51,7 +53,7 @@ If a URL isn't ready yet, leave it as `"#links-needed"` (or blank) and the widge
 {
   "updatedAt": "2026-08-27",
   "common": {
-    "nor": { "label": "PPNYC Notice of Race", "url": "https://lbrh.github.io/ppnyc-hub/documents/ppnyc-nor.pdf" },
+    "nor": { "label": "PPNYC Notice of Race", "url": "https://lbrh.space/ppnyc-hub/documents/ppnyc-nor.pdf" },
     "raceCalendar": { "label": "Combined Race Calendar", "url": "..." },
     "courseBook": { "label": "Combined Course Book", "url": "..." }
   },
