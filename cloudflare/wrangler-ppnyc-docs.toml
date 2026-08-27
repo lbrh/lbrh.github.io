@@ -1,0 +1,31 @@
+# Reference config for deploying ppnyc-docs-worker.js with the Wrangler CLI
+# (`npx wrangler deploy` from this directory), if you ever have Node
+# available. Not required for a dashboard-based deploy — the dashboard
+# lets you paste the worker source directly and add the KV binding,
+# secret, and Cron Trigger through the UI instead.
+
+name = "ppnyc-docs"
+main = "ppnyc-docs-worker.js"
+compatibility_date = "2024-09-01"
+
+# Optional safety net — the primary update path is the Apps Script webhook
+# (see apps-script-on-form-submit.js), which fires within seconds of a
+# form submission. This just re-checks the sheet periodically in case a
+# webhook call is ever missed. Remove this block entirely if you don't
+# want it; the worker no-ops the reconcile pass when SHEET_ID isn't set.
+[triggers]
+crons = ["*/30 * * * *"]
+
+[[kv_namespaces]]
+binding = "PPNYC_DOCS"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# The ID from the published response sheet's URL — only used by the cron
+# reconcile pass. Leave unset (or delete this line) to skip it entirely.
+SHEET_ID = "REPLACE_WITH_YOUR_SHEET_ID"
+
+# UPDATE_SECRET is intentionally NOT here — set it as an encrypted
+# variable/secret in the dashboard (Settings -> Variables -> Encrypt) or
+# via `npx wrangler secret put UPDATE_SECRET`, never committed in plain
+# text. It must match the value the Apps Script sends.
