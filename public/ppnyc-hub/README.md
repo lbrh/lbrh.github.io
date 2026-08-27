@@ -2,7 +2,9 @@
 
 A self-hosted, vanilla-JS widget that replaces the [PPNYC document hub prototype](https://ppnyc-document-hub.owen-church64.chatgpt.site/#links-needed). One file (`widget.js`) is embedded on all three club sites — RMYS, RYCV, and HBYC — and detects which club's domain it's running on to show the right branding and documents.
 
-It renders as a full-width page section (hero, document-sequence walkthrough, common-documents grid, other-club expander, status note) with the same descriptive copy and section structure as the original prototype — not a small sidebar card. Point a club's "Race Documents" page at the embed snippet below and it fills the page.
+It renders as a full-width page section (hero, document-sequence walkthrough, common-documents grid, other-club expander, last-updated note) with the same descriptive copy and section structure as the original prototype — not a small sidebar card. Point a club's "Race Documents" page at the embed snippet below and it fills the page.
+
+> **Not a developer?** See [HOWTO.md](HOWTO.md) instead — plain-language steps for updating a document or adding the hub to a club website. This file is the technical reference.
 
 ## Embed on a club site
 
@@ -91,6 +93,7 @@ Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club v
 
 ## Files
 
+- `HOWTO.md` — plain-language instructions for club staff/website admins. Link this to non-technical people, not this file.
 - `widget.js` — the embeddable widget. No dependencies, no build step. Fetches live document data from `DOCS_API_URL` (the Cloudflare Worker); falls back to `documents/` if that's unreachable.
 - `documents.json` — a static snapshot of the same shape the worker serves, kept for reference/history. Not read by the widget directly.
 - `documents/` — the actual PDFs, at stable filenames, used as the offline fallback. Overwrite in place and push to update a document manually, bypassing the form.
