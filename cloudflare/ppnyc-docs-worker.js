@@ -131,10 +131,13 @@ function json(body, status) {
   });
 }
 
-// Drive sometimes can't virus-scan a file and serves an HTML interstitial
-// instead of the bytes, with a "confirm=XXXX" token embedded in the page
-// to bypass it. None of the current PDFs are large enough to usually hit
-// this, but it costs nothing to handle.
+// Drive returns an HTML page instead of the file in two cases: a "can't
+// virus-scan this large file" interstitial (has a confirm=XXXX token we
+// can retry with) or, far more commonly here, the file simply isn't
+// shared "Anyone with the link" — Drive serves a sign-in/request-access
+// page instead, with no confirm token at all. Returns null for that
+// second case so the caller falls back cleanly instead of trying to
+// serve an HTML page as a PDF.
 async function fetchDriveFile(driveId) {
   var directUrl = 'https://drive.google.com/uc?export=download&id=' + driveId;
   var res = await fetch(directUrl);
@@ -143,9 +146,8 @@ async function fetchDriveFile(driveId) {
   if (contentType.indexOf('text/html') !== -1) {
     var html = await res.text();
     var confirmMatch = html.match(/confirm=([0-9A-Za-z_-]+)/);
-    if (confirmMatch) {
-      res = await fetch(directUrl + '&confirm=' + confirmMatch[1]);
-    }
+    if (!confirmMatch) return null;
+    res = await fetch(directUrl + '&confirm=' + confirmMatch[1]);
   }
   return res;
 }
@@ -208,20 +210,29 @@ async function handleDocumentPdf(slug, env) {
     return Response.redirect(FALLBACK_BASE + slug + '.pdf', 302);
   }
 
-  var driveRes = await fetchDriveFile(driveId);
-  if (!driveRes.ok) {
-    // Drive fetch failed for some reason — fall back rather than 500.
+  try {
+    var driveRes = await fetchDriveFile(driveId);
+    if (!driveRes || !driveRes.ok) {
+      // Drive fetch failed, or returned something that wasn't the file
+      // (most likely: not shared "Anyone with the link") — fall back
+      // rather than serving an error or the wrong content as a "PDF".
+      return Response.redirect(FALLBACK_BASE + slug + '.pdf', 302);
+    }
+
+    return new Response(driveRes.body, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'public, max-age=300',
+        'Content-Disposition': 'inline; filename="' + slug + '.pdf"',
+        ...CORS_HEADERS,
+      },
+    });
+  } catch (e) {
+    // Belt and suspenders — any unexpected failure here should degrade
+    // to the static file, never a raw 500 to whoever clicked the link.
+    console.error('drive proxy failed for', slug, e);
     return Response.redirect(FALLBACK_BASE + slug + '.pdf', 302);
   }
-
-  return new Response(driveRes.body, {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Cache-Control': 'public, max-age=300',
-      'Content-Disposition': 'inline; filename="' + slug + '.pdf"',
-      ...CORS_HEADERS,
-    },
-  });
 }
 
 // ---------------------------------------------------------------------

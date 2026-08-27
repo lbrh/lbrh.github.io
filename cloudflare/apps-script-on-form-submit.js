@@ -15,9 +15,12 @@
  *    "From spreadsheet", event type "On form submit" -> Save.
  *    ("From form" also works — see the fallback below — but "From
  *    spreadsheet" is the one these setup steps assume.)
- * 6. Google will ask you to authorize the script (it needs permission
- *    to make an outbound request) — this is your own script running in
- *    your own account, so it's safe to allow.
+ * 6. Google will ask you to authorize the script — it needs permission
+ *    to make an outbound request AND to manage Drive files (so it can
+ *    make each uploaded PDF publicly viewable; a form's file-upload
+ *    question saves files as private by default, which the worker
+ *    can't serve). This is your own script running in your own
+ *    account, so it's safe to allow both.
  * 7. Submit a test response through the Form and check Executions
  *    (left sidebar) to confirm it ran and see the worker's response.
  *    If it logs "Missing ... — skipping", the log line now also prints
@@ -46,6 +49,8 @@ function onFormSubmit(e) {
     );
     return;
   }
+
+  makeFilePublic(found.driveUrl);
 
   var payload = { label: found.label, driveUrl: found.driveUrl };
 
@@ -116,4 +121,28 @@ function titleMatches(actual, expected) {
 
 function firstValue(arr) {
   return arr && arr.length ? arr[0] : null;
+}
+
+// A Form's file-upload question saves the file to Drive as private —
+// visible only to the form owner — which the worker can't fetch and
+// serve publicly. This opens it up to "anyone with the link can view"
+// (matches extractDriveId() in ppnyc-docs-worker.js) so the proxy route
+// can actually read it. Doesn't touch edit permissions.
+function makeFilePublic(driveUrl) {
+  var id = extractDriveId(driveUrl);
+  if (!id) {
+    Logger.log('Could not find a Drive file ID in "%s" — skipping sharing update.', driveUrl);
+    return;
+  }
+  try {
+    DriveApp.getFileById(id).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    Logger.log('Failed to make Drive file %s public: %s', id, e);
+  }
+}
+
+function extractDriveId(url) {
+  if (!url) return null;
+  var m = url.match(/\/d\/([\w-]{10,})/) || url.match(/[?&]id=([\w-]{10,})/);
+  return m ? m[1] : null;
 }
