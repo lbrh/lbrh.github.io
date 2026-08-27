@@ -13,7 +13,7 @@ Paste this wherever the hub should appear (WordPress custom HTML block, GoDaddy 
 <script src="https://lbrh.space/ppnyc-hub/widget.js" defer></script>
 ```
 
-**Always use `lbrh.space`, never `lbrh.github.io`.** `lbrh.github.io` is this site's raw GitHub Pages address; `lbrh.space` is the custom domain it's actually served under, and `lbrh.github.io` 301-redirects to it. That redirect response has no CORS header, so a foreign-origin page (any real club site) that fetches `documents.json` through it gets blocked by CORS and the widget silently falls back to "Coming soon" placeholders — it looks like the documents were never wired up, when actually it's just the wrong host in the `<script src>`. Loading `widget.js` itself still works either way (the browser follows the redirect for a plain script load), so this bug only shows up in the document data, which is what makes it easy to miss.
+**Always use `lbrh.space`, never `lbrh.github.io`.** `lbrh.github.io` is this site's raw GitHub Pages address; `lbrh.space` is the custom domain it's actually served under, and `lbrh.github.io` 301-redirects to it. That redirect response has no CORS header, so a foreign-origin page (any real club site) that fetches something through it — the fallback documents, the club logos — gets blocked by CORS. Loading `widget.js` itself still works either way (the browser follows the redirect for a plain script load), so this kind of bug only shows up in the data/images, which is what makes it easy to miss.
 
 The script auto-detects the club from `window.location.hostname`:
 
@@ -43,36 +43,17 @@ Nine documents total, not ten — the original prototype assumed a tenth "common
 
 ## Updating documents
 
-All nine document URLs live in [`documents.json`](documents.json), not in the widget code. Edit that file and push — every club site picks up the change on next page load (the widget fetches with `cache: 'no-store'`, so there's no waiting on browser/CDN caching).
+Nobody needs to touch this repo to update a document. A trusted staff member fills out a Google Form — picks which of the 9 documents from a dropdown, uploads the replacement PDF — and the live link updates within seconds. No GitHub, no git push, no code.
 
-The actual PDFs are committed straight into this repo, at [`documents/`](documents/), and served from GitHub Pages — `documents.json` just points at them by stable filename (`rmys-sailing-instructions.pdf`, not a versioned name like `RMYS-SIs-2025-2026 V 3.pdf`). To publish a new version of a document each season: overwrite the file at that same path and push — the filename, and therefore every club's link, doesn't need to change.
+The pipeline behind that (all in [`../../cloudflare/`](../../cloudflare/), alongside the existing `bom-worker.js`):
 
-If a URL isn't ready yet, leave it as `"#links-needed"` (or blank) and the widget renders a "Coming soon" pill instead of a dead link.
+1. **Google Form + Sheet** — the form's file-upload question saves the PDF to Drive and logs the submission (which document, a link to the file) as a row in a response sheet.
+2. **`apps-script-on-form-submit.js`** — an Apps Script trigger bound to that sheet fires the instant a response comes in and POSTs it straight to the worker below. Push, not poll, so updates land in seconds.
+3. **`ppnyc-docs-worker.js`** — a Cloudflare Worker (`DOCS_API_URL` in `widget.js`) that receives that webhook, stores which Drive file now backs each of the 9 slots, and serves `/documents.json` in the same `{ updatedAt, common, clubs }` shape the widget has always expected. It also serves each document at a stable `/documents/<slug>.pdf` URL that proxies the current Drive file — so the public link never changes even though the file behind it does. A slot nobody's ever submitted through the form just keeps pointing at the static fallback file below.
 
-```json
-{
-  "updatedAt": "2026-08-27",
-  "common": {
-    "nor": { "label": "PPNYC Notice of Race", "url": "https://lbrh.space/ppnyc-hub/documents/ppnyc-nor.pdf" },
-    "raceCalendar": { "label": "Combined Race Calendar", "url": "..." },
-    "courseBook": { "label": "Combined Course Book", "url": "..." }
-  },
-  "clubs": {
-    "rmys": { "annexure": { "label": "...", "url": "..." }, "supplement": { "label": "...", "url": "..." } },
-    "rycv": { "...": "..." },
-    "hbyc": { "...": "..." }
-  }
-}
-```
+`widget.js` fetches `DOCS_API_URL` with `cache: 'no-store'` — no browser/CDN caching to wait out. If that worker is ever unreachable, the widget falls back to [`documents/`](documents/), the PDFs committed straight into this repo at stable filenames (`rmys-sailing-instructions.pdf`, not a versioned name like `RMYS-SIs-2025-2026 V 3.pdf`). Overwriting one of those files and pushing is still a valid way to update a document manually — the form pipeline is the no-GitHub path, not the only path.
 
-### Swapping in Google Sheets / Airtable / Supabase later
-
-`documents.json` is deliberately just a static file fetched by URL — that's the whole "API." If a club wants to manage links themselves without touching GitHub:
-
-- **Google Sheets**: publish the sheet as JSON (via Sheets API or a tool like sheet.best) and change the one `fetch()` URL built in `fetchDocs()` in `widget.js` to point at it, keeping the same `{ updatedAt, common, clubs }` shape.
-- **Airtable / Supabase**: same idea — point `fetchDocs()` at the table's REST endpoint and shape the response the same way, or add a small transform.
-
-No other part of the widget needs to change; it doesn't care where the JSON came from, only that it matches the shape above.
+See the setup instructions and full architecture notes in the header comments of `ppnyc-docs-worker.js` and `apps-script-on-form-submit.js`.
 
 ## Branding
 
@@ -96,22 +77,22 @@ Each site shows its own club's document sequence by default (matching what that 
 
 Top to bottom, `render()` builds:
 
-1. **Hero** — club badge, "Every PPNYC race document, in one place." headline, one-line description naming the club.
+1. **Hero** — "Every PPNYC race document, in one place." headline, one-line description naming the club.
 2. **Document sequence** — PPNYC NOR → host NOR annexure → host Sailing Instructions, each step as a numbered card with a short description of what that document covers.
 3. **Common documents** — a grid of the two other program-wide documents (race calendar, course book), same descriptive copy.
 4. **Racing elsewhere** — collapsed by default; expands into the other two clubs' annexure/SI cards.
-5. **Document status** — a line that counts how many of the five documents relevant to this club are still `#links-needed`, plus the `updatedAt` date from `documents.json`.
+5. **Last updated** — the `updatedAt` date from the live data source.
 
-Descriptive copy for each document (the sentence under its title) lives in `COMMON_DESC` / `CLUB_DOC_DESC` near the top of `widget.js`, not in `documents.json` — it's fixed editorial copy, not per-club data.
+Descriptive copy for each document (the sentence under its title) lives in `COMMON_DESC` / `CLUB_DOC_DESC` near the top of `widget.js` — it's fixed editorial copy, not data that comes from the form or the worker.
 
 ## Preview / testing
 
-Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club variants side by side and grab the exact embed snippet. It loads the real `widget.js` and `documents.json`, so it reflects production behaviour — not a mockup.
+Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club variants side by side and grab the exact embed snippet. It loads the real `widget.js`, so it reflects production behaviour — not a mockup.
 
 ## Files
 
-- `widget.js` — the embeddable widget. No dependencies, no build step.
-- `documents.json` — the single source of truth for document links. Edit this to update all three club sites.
-- `documents/` — the actual PDFs, at stable filenames. Overwrite in place to publish a new version.
+- `widget.js` — the embeddable widget. No dependencies, no build step. Fetches live document data from `DOCS_API_URL` (the Cloudflare Worker); falls back to `documents/` if that's unreachable.
+- `documents.json` — a static snapshot of the same shape the worker serves, kept for reference/history. Not read by the widget directly.
+- `documents/` — the actual PDFs, at stable filenames, used as the offline fallback. Overwrite in place and push to update a document manually, bypassing the form.
 - `logos/` — each club's crest, shown next to their own documents.
 - `demo.html` — local preview harness with a club switcher.

@@ -7,8 +7,13 @@
  * Full-page race documentation hub. Detects which club's site it's running
  * on (by hostname) and renders that club's own document sequence front and
  * centre, with the other two clubs' sailing instructions available behind
- * an expander. Document links live in documents.json next to this file, so
- * updating one JSON file updates all three club sites instantly.
+ * an expander. Document links are fetched live from a Cloudflare Worker
+ * (see cloudflare/ppnyc-docs-worker.js) that's kept up to date by a Google
+ * Form + Apps Script pipeline (see cloudflare/apps-script-on-form-submit.js)
+ * — a staff member picks a document and uploads a PDF, and the live link
+ * here updates within seconds, no code changes needed. If that worker is
+ * ever unreachable, FALLBACK_DOCS below (the PDFs committed in
+ * documents/) is used instead.
  *
  * Manual override for staging/testing: add data-club="rmys|rycv|hbyc" to
  * either the script tag or the container div.
@@ -62,26 +67,58 @@
     supplement: "The host club's Standard and Supplementary Sailing Instructions."
   };
 
-  // Used if documents.json can't be fetched (offline, blocked, malformed).
+  // Where the live document data comes from — a Cloudflare Worker kept up
+  // to date by the Google Form pipeline, not a static file next to this
+  // script (that's just the fallback below).
+  var DOCS_API_URL = 'https://square-glade-7420.lbrhounsell.workers.dev/documents.json';
+
+  // Used if the worker above can't be reached (network error, Cloudflare
+  // outage, etc). Points at the PDFs committed in documents/ — always
+  // available, just not reflecting any updates submitted through the form
+  // since this file was last deployed.
   var FALLBACK_DOCS = {
     updatedAt: '',
     common: {
-      nor: { label: 'PPNYC Notice of Race', url: '#links-needed' },
-      raceCalendar: { label: 'Combined Race Calendar', url: '#links-needed' },
-      courseBook: { label: 'Combined Course Book', url: '#links-needed' }
+      nor: { label: 'PPNYC Notice of Race', url: 'https://lbrh.space/ppnyc-hub/documents/ppnyc-nor.pdf' },
+      raceCalendar: {
+        label: 'Combined Race Calendar',
+        url: 'https://lbrh.space/ppnyc-hub/documents/ppnyc-race-calendar.pdf'
+      },
+      courseBook: {
+        label: 'Combined Course Book',
+        url: 'https://lbrh.space/ppnyc-hub/documents/ppnyc-course-book.pdf'
+      }
     },
     clubs: {
       rmys: {
-        annexure: { label: 'RMYS NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'RMYS Standard & Supplementary Sailing Instructions', url: '#links-needed' }
+        annexure: {
+          label: 'RMYS NOR Annexure',
+          url: 'https://lbrh.space/ppnyc-hub/documents/rmys-nor-annexure.pdf'
+        },
+        supplement: {
+          label: 'RMYS Standard & Supplementary Sailing Instructions',
+          url: 'https://lbrh.space/ppnyc-hub/documents/rmys-sailing-instructions.pdf'
+        }
       },
       rycv: {
-        annexure: { label: 'RYCV NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'RYCV Standard & Supplementary Sailing Instructions', url: '#links-needed' }
+        annexure: {
+          label: 'RYCV NOR Annexure',
+          url: 'https://lbrh.space/ppnyc-hub/documents/rycv-nor-annexure.pdf'
+        },
+        supplement: {
+          label: 'RYCV Standard & Supplementary Sailing Instructions',
+          url: 'https://lbrh.space/ppnyc-hub/documents/rycv-sailing-instructions.pdf'
+        }
       },
       hbyc: {
-        annexure: { label: 'HBYC NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'HBYC Standard & Supplementary Sailing Instructions', url: '#links-needed' }
+        annexure: {
+          label: 'HBYC NOR Annexure',
+          url: 'https://lbrh.space/ppnyc-hub/documents/hbyc-nor-annexure.pdf'
+        },
+        supplement: {
+          label: 'HBYC Standard & Supplementary Sailing Instructions',
+          url: 'https://lbrh.space/ppnyc-hub/documents/hbyc-sailing-instructions.pdf'
+        }
       }
     }
   };
@@ -115,19 +152,11 @@
     return merged;
   }
 
-  function getBaseUrl(scriptEl) {
-    if (scriptEl && scriptEl.src) {
-      return scriptEl.src.replace(/[^/]*$/, '');
-    }
-    return '';
-  }
-
-  function fetchDocs(scriptEl) {
-    var base = getBaseUrl(scriptEl);
-    var url = base + 'documents.json?_=' + Date.now();
+  function fetchDocs() {
     if (typeof fetch !== 'function') {
       return Promise.reject(new Error('fetch unsupported'));
     }
+    var url = DOCS_API_URL + (DOCS_API_URL.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
     return fetch(url, { cache: 'no-store' }).then(function (res) {
       if (!res.ok) throw new Error('bad status ' + res.status);
       return res.json();
@@ -480,7 +509,7 @@
 
     renderLoading(container);
 
-    fetchDocs(scriptEl)
+    fetchDocs()
       .then(mergeDocs)
       .catch(function () {
         return FALLBACK_DOCS;
