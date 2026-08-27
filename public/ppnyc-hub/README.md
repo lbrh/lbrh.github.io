@@ -84,6 +84,8 @@ Each club gets its own accent colour, set in `CLUBS` at the top of `widget.js` (
 | RYCV | `#1a2b5d` (navy) | Top nav bar on [rycv.com.au](https://rycv.com.au/) |
 | HBYC | `#0e193e` (navy) | Site header on [hbyc.org.au](https://hbyc.org.au/) |
 
+Each club's crest (pulled from their own site's favicon/header) is committed at [`logos/`](logos/) and shown next to that club's own documents — the NOR annexure and Sailing Instructions cards, both in the main sequence and in "Racing elsewhere." Shared documents (NOR, calendar, course book) show no logo since they aren't owned by one club. Set in `CLUBS[key].logo` in `widget.js`, as an absolute `lbrh.space` URL for the same reason document links are absolute.
+
 Update the hex codes directly in `CLUBS` if a club rebrands — no other change needed.
 
 ## Own club first, others on demand
@@ -111,4 +113,5 @@ Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club v
 - `widget.js` — the embeddable widget. No dependencies, no build step.
 - `documents.json` — the single source of truth for document links. Edit this to update all three club sites.
 - `documents/` — the actual PDFs, at stable filenames. Overwrite in place to publish a new version.
+- `logos/` — each club's crest, shown next to their own documents.
 - `demo.html` — local preview harness with a club switcher.

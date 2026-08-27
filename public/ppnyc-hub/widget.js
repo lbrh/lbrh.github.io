@@ -16,28 +16,33 @@
 (function () {
   'use strict';
 
-  // Accent colors sampled from each club's own site (header/nav bar + crest).
+  // Accent colors and crest sampled from each club's own site (header/nav
+  // bar + favicon). Logo URLs are absolute (like the document URLs) since
+  // this widget runs embedded on other clubs' domains.
   var CLUBS = {
     rmys: {
       name: 'Royal Melbourne Yacht Squadron',
       short: 'RMYS',
       hosts: ['rmys.com.au', 'www.rmys.com.au'],
       accent: '#e31b2c',
-      accentDark: '#9c0f1c'
+      accentDark: '#9c0f1c',
+      logo: 'https://lbrh.space/ppnyc-hub/logos/rmys-logo.png'
     },
     rycv: {
       name: 'Royal Yacht Club of Victoria',
       short: 'RYCV',
       hosts: ['rycv.com.au', 'www.rycv.com.au'],
       accent: '#1a2b5d',
-      accentDark: '#0d1530'
+      accentDark: '#0d1530',
+      logo: 'https://lbrh.space/ppnyc-hub/logos/rycv-logo.png'
     },
     hbyc: {
       name: 'Hobsons Bay Yacht Club',
       short: 'HBYC',
       hosts: ['hbyc.org.au', 'www.hbyc.org.au'],
       accent: '#0e193e',
-      accentDark: '#060b1f'
+      accentDark: '#060b1f',
+      logo: 'https://lbrh.space/ppnyc-hub/logos/hbyc-logo.png'
     }
   };
 
@@ -177,14 +182,19 @@
     return node;
   }
 
-  function docCard(doc, description) {
+  function docCard(doc, description, logoUrl) {
     var pending = isPlaceholder(doc && doc.url);
     var card = el(
       'div',
       { class: 'ppnyc-hub__card' + (pending ? ' ppnyc-hub__card--pending' : '') },
       []
     );
-    card.appendChild(el('p', { class: 'ppnyc-hub__card-title' }, [doc ? doc.label : '']));
+    var head = el('div', { class: 'ppnyc-hub__card-head' }, []);
+    if (logoUrl) {
+      head.appendChild(el('img', { class: 'ppnyc-hub__card-logo', src: logoUrl, alt: '', loading: 'lazy' }, []));
+    }
+    head.appendChild(el('p', { class: 'ppnyc-hub__card-title' }, [doc ? doc.label : '']));
+    card.appendChild(head);
     if (description) {
       card.appendChild(el('p', { class: 'ppnyc-hub__card-desc' }, [description]));
     }
@@ -202,10 +212,10 @@
     return card;
   }
 
-  function stepRow(num, doc, description) {
+  function stepRow(num, doc, description, logoUrl) {
     return el('div', { class: 'ppnyc-hub__step' }, [
       el('div', { class: 'ppnyc-hub__step-num' }, [String(num)]),
-      docCard(doc, description)
+      docCard(doc, description, logoUrl)
     ]);
   }
 
@@ -247,6 +257,8 @@
       'display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s}' +
       '.ppnyc-hub__card:hover{border-color:var(--ppnyc-accent);box-shadow:0 4px 14px rgba(15,23,42,.06)}' +
       '.ppnyc-hub__card--pending{border-style:dashed;background:#fafafa}' +
+      '.ppnyc-hub__card-head{display:flex;align-items:center;gap:8px}' +
+      '.ppnyc-hub__card-logo{width:22px;height:22px;object-fit:contain;flex:0 0 auto;border-radius:4px}' +
       '.ppnyc-hub__card-title{font-size:15px;font-weight:700;color:#0f172a;margin:0}' +
       '.ppnyc-hub__card-desc{font-size:13px;line-height:1.5;color:#64748b;margin:0}' +
       '.ppnyc-hub__card-link{margin-top:4px;font-size:13px;font-weight:700;color:var(--ppnyc-accent);' +
@@ -352,8 +364,8 @@
         el('div', {}, [
           el('p', { class: 'ppnyc-hub__other-club-name' }, [club.name + ' (' + club.short + ')']),
           el('div', { class: 'ppnyc-hub__doc-grid' }, [
-            docCard(clubDocs.annexure, CLUB_DOC_DESC.annexure),
-            docCard(clubDocs.supplement, CLUB_DOC_DESC.supplement)
+            docCard(clubDocs.annexure, CLUB_DOC_DESC.annexure, club.logo),
+            docCard(clubDocs.supplement, CLUB_DOC_DESC.supplement, club.logo)
           ])
         ])
       );
@@ -411,8 +423,8 @@
     stepsSection.appendChild(
       el('div', { class: 'ppnyc-hub__steps' }, [
         stepRow(1, docs.common.nor, COMMON_DESC.nor),
-        stepRow(2, clubDocs.annexure, CLUB_DOC_DESC.annexure),
-        stepRow(3, clubDocs.supplement, CLUB_DOC_DESC.supplement)
+        stepRow(2, clubDocs.annexure, CLUB_DOC_DESC.annexure, club.logo),
+        stepRow(3, clubDocs.supplement, CLUB_DOC_DESC.supplement, club.logo)
       ])
     );
     container.appendChild(stepsSection);
