@@ -299,7 +299,9 @@
       'font:inherit;color:inherit;display:block}' +
       '.ppnyc-hub__toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}' +
       '.ppnyc-hub__toggle-title{font-size:22px;font-weight:800;color:#0f172a;margin:0}' +
-      '.ppnyc-hub__toggle-caret{color:var(--ppnyc-accent);font-size:16px;flex:0 0 auto;transition:transform .15s}' +
+      '.ppnyc-hub__toggle-caret{color:#fff;background:var(--ppnyc-accent);font-size:22px;font-weight:800;' +
+      'line-height:1;flex:0 0 auto;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;' +
+      'justify-content:center;transition:transform .2s}' +
       '.ppnyc-hub__toggle[aria-expanded="true"] .ppnyc-hub__toggle-caret{transform:rotate(180deg)}' +
       '.ppnyc-hub__toggle .ppnyc-hub__section-desc{margin-top:8px}' +
       '.ppnyc-hub__other-body{margin-top:24px;display:flex;flex-direction:column;gap:28px}' +
