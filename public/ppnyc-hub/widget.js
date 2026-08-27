@@ -31,7 +31,8 @@
       hosts: ['rmys.com.au', 'www.rmys.com.au'],
       accent: '#e31b2c',
       accentDark: '#9c0f1c',
-      logo: 'https://lbrh.space/ppnyc-hub/logos/rmys-logo.png'
+      logo: 'https://lbrh.space/ppnyc-hub/logos/rmys-logo.png',
+      moreUrl: 'https://rmys.com.au/sailing/racing/documents/'
     },
     rycv: {
       name: 'Royal Yacht Club of Victoria',
@@ -39,7 +40,8 @@
       hosts: ['rycv.com.au', 'www.rycv.com.au'],
       accent: '#1a2b5d',
       accentDark: '#0d1530',
-      logo: 'https://lbrh.space/ppnyc-hub/logos/rycv-logo.png'
+      logo: 'https://lbrh.space/ppnyc-hub/logos/rycv-logo.png',
+      moreUrl: 'https://rycv.com.au/sailing-instructions/'
     },
     hbyc: {
       name: 'Hobsons Bay Yacht Club',
@@ -47,7 +49,8 @@
       hosts: ['hbyc.org.au', 'www.hbyc.org.au'],
       accent: '#0e193e',
       accentDark: '#060b1f',
-      logo: 'https://lbrh.space/ppnyc-hub/logos/hbyc-logo.png'
+      logo: 'https://lbrh.space/ppnyc-hub/logos/hbyc-logo.png',
+      moreUrl: 'https://hbyc.org.au/keelboat-race-documents'
     }
   };
 
@@ -241,6 +244,20 @@
     return card;
   }
 
+  // A link out to the club's own race-documents page, for anything beyond
+  // the 9 documents this hub tracks (event-specific SIs, notices, etc).
+  function moreLink(club) {
+    if (!club.moreUrl) return null;
+    return el(
+      'a',
+      { class: 'ppnyc-hub__more-link', href: club.moreUrl, target: '_blank', rel: 'noopener noreferrer' },
+      [
+        'More ' + club.short + ' sailing instructions on ' + club.short + "'s website ",
+        el('span', { 'aria-hidden': 'true' }, ['↗'])
+      ]
+    );
+  }
+
   function stepRow(num, doc, description, logoUrl) {
     return el('div', { class: 'ppnyc-hub__step' }, [
       el('div', { class: 'ppnyc-hub__step-num' }, [String(num)]),
@@ -295,6 +312,10 @@
       '.ppnyc-hub__card-link:hover{text-decoration:underline}' +
       '.ppnyc-hub__card-status{margin-top:4px;font-size:11px;font-weight:800;letter-spacing:.05em;' +
       'text-transform:uppercase;color:#94a3b8}' +
+      '.ppnyc-hub__more-link{margin-top:16px;font-size:13px;font-weight:600;color:var(--ppnyc-accent);' +
+      'text-decoration:none;display:inline-flex;align-items:center;gap:4px}' +
+      '.ppnyc-hub__more-link:hover{text-decoration:underline}' +
+      '.ppnyc-hub__more-link--steps{margin-top:8px}' +
       '.ppnyc-hub__toggle{background:none;border:0;padding:0;width:100%;text-align:left;cursor:pointer;' +
       'font:inherit;color:inherit;display:block}' +
       '.ppnyc-hub__toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}' +
@@ -397,7 +418,8 @@
           el('div', { class: 'ppnyc-hub__doc-grid' }, [
             docCard(clubDocs.annexure, CLUB_DOC_DESC.annexure, club.logo),
             docCard(clubDocs.supplement, CLUB_DOC_DESC.supplement, club.logo)
-          ])
+          ]),
+          moreLink(club)
         ])
       );
     });
@@ -458,6 +480,11 @@
         stepRow(3, clubDocs.supplement, CLUB_DOC_DESC.supplement, club.logo)
       ])
     );
+    var homeMoreLink = moreLink(club);
+    if (homeMoreLink) {
+      homeMoreLink.classList.add('ppnyc-hub__more-link--steps');
+      stepsSection.appendChild(homeMoreLink);
+    }
     container.appendChild(stepsSection);
 
     var commonSection = el(
