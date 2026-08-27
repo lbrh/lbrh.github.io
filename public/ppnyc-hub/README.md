@@ -30,20 +30,30 @@ If a page is served from a domain the widget doesn't recognise (staging, a membe
 
 If you omit the `<div>` entirely, the script inserts one automatically right where the `<script>` tag sits — so the embed genuinely works as two lines.
 
+## Document structure
+
+There's **one** shared document group (published once, used by all three clubs) and each club has its **own** NOR annexure and its **own** Sailing Instructions — there's no separate program-wide SSI distinct from a club's SI; each club already publishes a single combined "Standard & Supplementary Sailing Instructions" document, so the widget doesn't invent a duplicate:
+
+- **Common** (one file each, shared): PPNYC Notice of Race, Combined Race Calendar, Combined Course Book
+- **Per club** (each of RMYS / RYCV / HBYC has its own): NOR Annexure, Standard & Supplementary Sailing Instructions
+
+Nine documents total, not ten — the original prototype assumed a tenth "common SSI" that doesn't actually exist as a separate file in practice.
+
 ## Updating documents
 
-All ten document URLs (4 shared + 2 per club × 3 clubs) live in [`documents.json`](documents.json), not in the widget code. Edit that file and push — every club site picks up the change on next page load (the widget fetches with `cache: 'no-store'`, so there's no waiting on browser/CDN caching).
+All nine document URLs live in [`documents.json`](documents.json), not in the widget code. Edit that file and push — every club site picks up the change on next page load (the widget fetches with `cache: 'no-store'`, so there's no waiting on browser/CDN caching).
 
-Until the real files are ready, leave a URL as `"#links-needed"` (or blank) and the widget renders a "Coming soon" pill instead of a dead link.
+The actual PDFs are committed straight into this repo, at [`documents/`](documents/), and served from GitHub Pages — `documents.json` just points at them by stable filename (`rmys-sailing-instructions.pdf`, not a versioned name like `RMYS-SIs-2025-2026 V 3.pdf`). To publish a new version of a document each season: overwrite the file at that same path and push — the filename, and therefore every club's link, doesn't need to change.
+
+If a URL isn't ready yet, leave it as `"#links-needed"` (or blank) and the widget renders a "Coming soon" pill instead of a dead link.
 
 ```json
 {
-  "updatedAt": "2026-08-26",
+  "updatedAt": "2026-08-27",
   "common": {
-    "nor": { "label": "PPNYC Notice of Race", "url": "https://.../nor.pdf" },
+    "nor": { "label": "PPNYC Notice of Race", "url": "https://lbrh.github.io/ppnyc-hub/documents/ppnyc-nor.pdf" },
     "raceCalendar": { "label": "Combined Race Calendar", "url": "..." },
-    "ssi": { "label": "PPNYC Standard Sailing Instructions", "url": "..." },
-    "courseBook": { "label": "SSI Attachment 1 — Course Book", "url": "..." }
+    "courseBook": { "label": "Combined Course Book", "url": "..." }
   },
   "clubs": {
     "rmys": { "annexure": { "label": "...", "url": "..." }, "supplement": { "label": "...", "url": "..." } },
@@ -76,17 +86,17 @@ Update the hex codes directly in `CLUBS` if a club rebrands — no other change 
 
 ## Own club first, others on demand
 
-Each site shows its own club's four-step flow by default (matching what that club's sailors actually need). Below the shared documents there's a collapsed **"Racing at another club? View their sailing instructions"** section — expanding it reveals the other two clubs' NOR annexure and SSI supplement, for members racing a passage or event hosted by a different club. Nothing needs configuring per site for this; `render()` always shows `CLUB_ORDER` minus whichever club is currently detected.
+Each site shows its own club's document sequence by default (matching what that club's sailors actually need). Below the shared documents there's a collapsed **"Racing at another club? View their sailing instructions"** section — expanding it reveals the other two clubs' NOR annexure and Sailing Instructions, for members racing a passage or event hosted by a different club. Nothing needs configuring per site for this; `render()` always shows `CLUB_ORDER` minus whichever club is currently detected.
 
 ## Page structure
 
 Top to bottom, `render()` builds:
 
 1. **Hero** — club badge, "Every PPNYC race document, in one place." headline, one-line description naming the club.
-2. **Document sequence** — the four-step walkthrough (PPNYC NOR → host annexure → Standard SI → host supplement), each step as a numbered card with a short description of what that document covers.
-3. **Common documents** — a 2×2 grid of the four program-wide documents, same descriptive copy.
-4. **Racing elsewhere** — collapsed by default; expands into the other two clubs' annexure/supplement cards.
-5. **Document status** — a line that counts how many of the six documents relevant to this club are still `#links-needed`, plus the `updatedAt` date from `documents.json`.
+2. **Document sequence** — PPNYC NOR → host NOR annexure → host Sailing Instructions, each step as a numbered card with a short description of what that document covers.
+3. **Common documents** — a grid of the two other program-wide documents (race calendar, course book), same descriptive copy.
+4. **Racing elsewhere** — collapsed by default; expands into the other two clubs' annexure/SI cards.
+5. **Document status** — a line that counts how many of the five documents relevant to this club are still `#links-needed`, plus the `updatedAt` date from `documents.json`.
 
 Descriptive copy for each document (the sentence under its title) lives in `COMMON_DESC` / `CLUB_DOC_DESC` near the top of `widget.js`, not in `documents.json` — it's fixed editorial copy, not per-club data.
 
@@ -98,4 +108,5 @@ Open [`demo.html`](demo.html) locally or on GitHub Pages to see all three club v
 
 - `widget.js` — the embeddable widget. No dependencies, no build step.
 - `documents.json` — the single source of truth for document links. Edit this to update all three club sites.
+- `documents/` — the actual PDFs, at stable filenames. Overwrite in place to publish a new version.
 - `demo.html` — local preview harness with a club switcher.

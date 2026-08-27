@@ -43,16 +43,18 @@
 
   var CLUB_ORDER = ['rmys', 'rycv', 'hbyc'];
 
-  // Static descriptive copy, mirrors the original PPNYC Document Hub prototype.
+  // Static descriptive copy. Each club publishes its own single Standard +
+  // Supplementary Sailing Instructions document (there's no separate
+  // program-wide SSI distinct from a club's own) — only the NOR, race
+  // calendar and course book are genuinely shared across all three clubs.
   var COMMON_DESC = {
     nor: 'The governing Notice of Race for the combined program.',
     raceCalendar: 'The shared scheduling reference for all host clubs.',
-    ssi: 'The common sailing instructions used across the series.',
     courseBook: 'The shared course and mark reference.'
   };
   var CLUB_DOC_DESC = {
     annexure: 'Host-club Notice of Race annexure.',
-    supplement: 'Host-club supplementary sailing instructions.'
+    supplement: "The host club's Standard and Supplementary Sailing Instructions."
   };
 
   // Used if documents.json can't be fetched (offline, blocked, malformed).
@@ -61,21 +63,20 @@
     common: {
       nor: { label: 'PPNYC Notice of Race', url: '#links-needed' },
       raceCalendar: { label: 'Combined Race Calendar', url: '#links-needed' },
-      ssi: { label: 'PPNYC Standard Sailing Instructions', url: '#links-needed' },
-      courseBook: { label: 'SSI Attachment 1 — Course Book', url: '#links-needed' }
+      courseBook: { label: 'Combined Course Book', url: '#links-needed' }
     },
     clubs: {
       rmys: {
         annexure: { label: 'RMYS NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'RMYS SSI Supplement', url: '#links-needed' }
+        supplement: { label: 'RMYS Standard & Supplementary Sailing Instructions', url: '#links-needed' }
       },
       rycv: {
         annexure: { label: 'RYCV NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'RYCV SSI Supplement', url: '#links-needed' }
+        supplement: { label: 'RYCV Standard & Supplementary Sailing Instructions', url: '#links-needed' }
       },
       hbyc: {
         annexure: { label: 'HBYC NOR Annexure', url: '#links-needed' },
-        supplement: { label: 'HBYC SSI Supplement', url: '#links-needed' }
+        supplement: { label: 'HBYC Standard & Supplementary Sailing Instructions', url: '#links-needed' }
       }
     }
   };
@@ -378,7 +379,6 @@
     var relevant = [
       docs.common.nor,
       docs.common.raceCalendar,
-      docs.common.ssi,
       docs.common.courseBook,
       clubDocs.annexure,
       clubDocs.supplement
@@ -417,7 +417,7 @@
         el('p', { class: 'ppnyc-hub__hero-desc' }, [
           'Start with the common documents, then open the ' +
             club.name +
-            ' annexure and supplementary sailing instructions.'
+            ' NOR annexure and Sailing Instructions.'
         ])
       ])
     );
@@ -430,15 +430,14 @@
       sectionHeading(
         'FOLLOW THE DOCUMENT SEQUENCE',
         'Document sequence',
-        'Open these four documents in order for any ' + club.short + ' race.'
+        'Open these documents in order for any ' + club.short + ' race.'
       )
     );
     stepsSection.appendChild(
       el('div', { class: 'ppnyc-hub__steps' }, [
         stepRow(1, docs.common.nor, COMMON_DESC.nor),
         stepRow(2, clubDocs.annexure, CLUB_DOC_DESC.annexure),
-        stepRow(3, docs.common.ssi, COMMON_DESC.ssi),
-        stepRow(4, clubDocs.supplement, CLUB_DOC_DESC.supplement)
+        stepRow(3, clubDocs.supplement, CLUB_DOC_DESC.supplement)
       ])
     );
     container.appendChild(stepsSection);
