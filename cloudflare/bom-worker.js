@@ -27,6 +27,17 @@ const HEADERS = {
   Referer: 'https://www.bom.gov.au/',
 };
 
+// bom.gov.au and ports.vic.gov.au occasionally black-hole a connection
+// rather than refusing it. With no timeout, one hung fetch keeps the whole
+// scheduled invocation alive until the platform kills it — before the KV
+// write runs — which freezes the served feed indefinitely (every station,
+// not just one). Abort each fetch so a dead upstream just yields null.
+const FETCH_TIMEOUT_MS = 8000;
+
+function timedFetch(url, opts = {}) {
+  return fetch(url, { ...opts, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+}
+
 const MELBOURNE_TZ = 'Australia/Melbourne';
 
 // Same BOM automatic weather station numbers as scripts/fetch_bom.py,
@@ -144,7 +155,7 @@ const HISTORY_WINDOW_MS = 24 * 60 * 60 * 1000;
 async function fetchStation(product, wmo) {
   const url = `https://www.bom.gov.au/fwo/${product}/${product}.${wmo}.json`;
   try {
-    const res = await fetch(url, { headers: HEADERS });
+    const res = await timedFetch(url, { headers: HEADERS });
     if (!res.ok) return null;
     const json = await res.json();
     const entries = json?.observations?.data;
@@ -229,7 +240,7 @@ async function fetchOmcStation(label, windPath, meteoPath) {
     ];
     if (meteoPath) queries.push(omcQuery('temp', meteoPath, 'temperature', 'Temperature'));
 
-    const res = await fetch(OMC_URL, {
+    const res = await timedFetch(OMC_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-grafana-org-id': '338' },
       body: JSON.stringify({ from: from.toISOString(), to: to.toISOString(), queries }),
@@ -279,7 +290,7 @@ async function fetchOmcStation(label, windPath, meteoPath) {
 async function fetchWarnings() {
   const result = { strong: false, gale: false, storm: false, rawText: null };
   try {
-    const res = await fetch('https://www.bom.gov.au/fwo/IDV20600.txt', { headers: HEADERS });
+    const res = await timedFetch('https://www.bom.gov.au/fwo/IDV20600.txt', { headers: HEADERS });
     if (!res.ok) return result;
     const text = await res.text();
     result.rawText = text;
@@ -303,7 +314,7 @@ async function fetchWarnings() {
 
 async function fetchForecastText() {
   try {
-    const res = await fetch('http://www.bom.gov.au/fwo/IDV10460.txt', { headers: HEADERS });
+    const res = await timedFetch('http://www.bom.gov.au/fwo/IDV10460.txt', { headers: HEADERS });
     if (!res.ok) return null;
     const lines = (await res.text()).split('\n');
 
@@ -421,7 +432,7 @@ function extractShippingTable(html, headingText) {
 async function fetchShipping() {
   const result = { arrivals: [], departures: [] };
   try {
-    const res = await fetch('https://ports.vic.gov.au/marine-operations/ship-movements/', { headers: HEADERS });
+    const res = await timedFetch('https://ports.vic.gov.au/marine-operations/ship-movements/', { headers: HEADERS });
     if (!res.ok) return result;
     const html = await res.text();
 
@@ -438,17 +449,33 @@ async function fetchShipping() {
 // ---------------------------------------------------------------------
 
 async function buildPayload() {
-  const [stations, webbDock, fawknerOmc, geelong, breakwaterPier, warnings, forecastText, shipping] =
-    await Promise.all([
-      fetchStations(),
-      fetchOmcStation('webb dock', WEBB_DOCK_WIND_PATH, WEBB_DOCK_METEO_PATH),
-      fetchOmcStation('fawkner beacon', FAWKNER_WIND_PATH, FAWKNER_METEO_PATH),
-      fetchOmcStation('geelong', GEELONG_WIND_PATH),
-      fetchOmcStation('breakwater pier', BREAKWATER_PIER_WIND_PATH),
-      fetchWarnings(),
-      fetchForecastText(),
-      fetchShipping(),
-    ]);
+  // allSettled, not all: a single fetcher throwing (a parse bug on an
+  // upstream format change, an abort) must not reject the whole payload and
+  // skip the KV write — that's what freezes the served feed for hours.
+  const settled = await Promise.allSettled([
+    fetchStations(),
+    fetchOmcStation('webb dock', WEBB_DOCK_WIND_PATH, WEBB_DOCK_METEO_PATH),
+    fetchOmcStation('fawkner beacon', FAWKNER_WIND_PATH, FAWKNER_METEO_PATH),
+    fetchOmcStation('geelong', GEELONG_WIND_PATH),
+    fetchOmcStation('breakwater pier', BREAKWATER_PIER_WIND_PATH),
+    fetchWarnings(),
+    fetchForecastText(),
+    fetchShipping(),
+  ]);
+  const val = (i, fallback) => (settled[i].status === 'fulfilled' ? settled[i].value : fallback);
+  settled.forEach((r, i) => {
+    if (r.status === 'rejected') console.error('fetcher rejected', i, r.reason);
+  });
+
+  const stations = val(0, {});
+  const webbDock = val(1, null);
+  const fawknerOmc = val(2, null);
+  const geelong = val(3, null);
+  const breakwaterPier = val(4, null);
+  const warnings = val(5, { strong: false, gale: false, storm: false, rawText: null });
+  const forecastText = val(6, null);
+  const shipping = val(7, { arrivals: [], departures: [] });
+
   if (webbDock) stations['webb-dock'] = webbDock;
   // BOM's Fawkner reading (from fetchStations above) stays in place as a
   // fallback if the OMC feed is unreachable; otherwise the more frequent
@@ -495,8 +522,23 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      buildPayload().then((payload) => env.BOM_DATA.put('live', JSON.stringify(payload))),
-    );
+    ctx.waitUntil(refresh(env));
   },
 };
+
+// Rebuilds the payload and stores it — unless every station came back empty
+// (a total upstream outage), in which case the last good value is left in
+// place rather than overwritten with nothing. Any error is logged, not
+// swallowed, so a persistent break shows up in the worker's logs.
+async function refresh(env) {
+  try {
+    const payload = await buildPayload();
+    if (Object.keys(payload.stations).length === 0) {
+      console.error('refresh produced no stations; keeping last stored value');
+      return;
+    }
+    await env.BOM_DATA.put('live', JSON.stringify(payload));
+  } catch (e) {
+    console.error('refresh failed', e);
+  }
+}

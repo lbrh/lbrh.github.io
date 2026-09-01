@@ -68,3 +68,13 @@ export function fetchLiveBomData(): Promise<LiveBomData | null> {
 export function resetLiveBomCache(): void {
   cache = null;
 }
+
+// The worker refreshes the feed every ~10 min. If generatedAt is much older
+// than that, the upstream pipeline has stalled and the "live" readings are
+// really frozen — worth flagging rather than presenting as current.
+export const LIVE_STALE_MINUTES = 35;
+
+export function liveAgeMinutes(data: LiveBomData | null): number | null {
+  const t = data?.generatedAt ? new Date(data.generatedAt).getTime() : NaN;
+  return Number.isNaN(t) ? null : Math.max(0, Math.round((Date.now() - t) / 60000));
+}

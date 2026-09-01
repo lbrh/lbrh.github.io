@@ -6,7 +6,7 @@ import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
 import { formatDirection, toCompass } from '@/lib/compass';
 import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
-import { fetchLiveBomData, resetLiveBomCache } from '@/lib/liveBom';
+import { fetchLiveBomData, resetLiveBomCache, liveAgeMinutes, LIVE_STALE_MINUTES } from '@/lib/liveBom';
 import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
@@ -191,6 +191,7 @@ export default function WindStations() {
   const [states, setStates] = useState<Record<string, StationState>>({});
   const [selected, setSelected] = useState<string>(WIND_STATIONS[0].id);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [liveAge, setLiveAge] = useState<number | null>(null);
 
   const loadAll = () => {
     const initial: Record<string, StationState> = {};
@@ -201,6 +202,7 @@ export default function WindStations() {
 
     resetLiveBomCache();
     const live = fetchLiveBomData();
+    live.then((d) => setLiveAge(liveAgeMinutes(d)));
 
     WIND_STATIONS.forEach((station) => {
       Promise.all([fetchStationWind(station), live])
@@ -315,6 +317,11 @@ export default function WindStations() {
             Auto-refreshes every 10 min
             {lastRefreshed ? ` · last ${lastRefreshed.toLocaleTimeString('en-AU')}` : ''}
           </span>
+          {liveAge != null && liveAge >= LIVE_STALE_MINUTES && (
+            <span className="tb-mono text-[10.5px] text-[var(--tb-warn)]">
+              BOM feed stale — last updated {liveAge} min ago
+            </span>
+          )}
         </div>
       </div>
 

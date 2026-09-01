@@ -4,7 +4,7 @@ import { WIND_STATIONS } from '@/data/windStations';
 import { BAND_COLOUR, BAND_LABEL, bandForGust } from '@/lib/windBands';
 import { formatDirection } from '@/lib/compass';
 import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
-import { fetchLiveBomData, resetLiveBomCache } from '@/lib/liveBom';
+import { fetchLiveBomData, resetLiveBomCache, liveAgeMinutes, LIVE_STALE_MINUTES } from '@/lib/liveBom';
 
 const REFRESH_MS = 10 * 60 * 1000;
 
@@ -16,6 +16,7 @@ type StationState =
 export default function WindSummary() {
   const [states, setStates] = useState<Record<string, StationState>>({});
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [liveAge, setLiveAge] = useState<number | null>(null);
 
   const loadAll = () => {
     const initial: Record<string, StationState> = {};
@@ -26,6 +27,7 @@ export default function WindSummary() {
 
     resetLiveBomCache();
     const live = fetchLiveBomData();
+    live.then((d) => setLiveAge(liveAgeMinutes(d)));
 
     WIND_STATIONS.forEach((station) => {
       Promise.all([fetchStationWind(station), live])
@@ -50,8 +52,20 @@ export default function WindSummary() {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="tb-eyebrow">Port Phillip Wind · Right Now</span>
         <div className="flex items-baseline gap-2">
-          <span className="tb-mono text-[10.5px] text-[var(--tb-text-faint)]">
-            {lastRefreshed ? `Updated ${lastRefreshed.toLocaleTimeString('en-AU')}` : ''}
+          <span
+            className="tb-mono text-[10.5px]"
+            style={{
+              color:
+                liveAge != null && liveAge >= LIVE_STALE_MINUTES
+                  ? 'var(--tb-warn)'
+                  : 'var(--tb-text-faint)',
+            }}
+          >
+            {liveAge != null && liveAge >= LIVE_STALE_MINUTES
+              ? `BOM feed stale · ${liveAge} min old`
+              : lastRefreshed
+                ? `Updated ${lastRefreshed.toLocaleTimeString('en-AU')}`
+                : ''}
           </span>
           <button onClick={loadAll} className="tb-btn-ghost px-2.5 py-1 text-[11px]">
             Refresh
