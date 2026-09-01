@@ -216,6 +216,24 @@
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────── */
+/* The viewport scrollbar belongs to <html>/<body>, which sit outside .toolbox,
+   so the rules below never reach it and it falls through to the neon thumb in
+   globals.css. WebKit/Blink pick the viewport scrollbar style off whichever of
+   <html> or <body> it finds first, so style both. Values are literal because
+   the --tb-* vars are scoped to .toolbox, not :root. */
+html:has(.toolbox)::-webkit-scrollbar,
+body:has(.toolbox)::-webkit-scrollbar { width: 11px; height: 11px; }
+html:has(.toolbox)::-webkit-scrollbar-track,
+body:has(.toolbox)::-webkit-scrollbar-track { background: #f7f8fa; }
+html:has(.toolbox)::-webkit-scrollbar-thumb,
+body:has(.toolbox)::-webkit-scrollbar-thumb {
+  background: #cbd1d8;
+  border: 3px solid #f7f8fa;
+  border-radius: 6px;
+}
+html:has(.toolbox)::-webkit-scrollbar-thumb:hover,
+body:has(.toolbox)::-webkit-scrollbar-thumb:hover { background: #8a929c; }
+
 .toolbox ::-webkit-scrollbar { width: 11px; height: 11px; }
 .toolbox ::-webkit-scrollbar-track { background: var(--tb-surface); }
 .toolbox ::-webkit-scrollbar-thumb {
