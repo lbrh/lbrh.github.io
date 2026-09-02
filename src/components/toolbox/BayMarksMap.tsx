@@ -2,6 +2,12 @@ import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Mark } from '@/data/portPhillipMarks';
 import { MARK_CATEGORY_COLOUR } from '@/data/portPhillipMarks';
+import {
+  CARTO_ATTRIBUTION,
+  CARTO_VOYAGER_URL,
+  SEAMARK_ATTRIBUTION,
+  SEAMARK_URL,
+} from '@/lib/basemaps';
 
 export default function BayMarksMap({ marks, nautical = false }: { marks: Mark[]; nautical?: boolean }) {
   return (
@@ -11,16 +17,8 @@ export default function BayMarksMap({ marks, nautical = false }: { marks: Mark[]
       scrollWheelZoom
       style={{ height: '100%', width: '100%', background: '#eef1f4' }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-      />
-      {nautical && (
-        <TileLayer
-          attribution='Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
-          url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
-        />
-      )}
+      <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_VOYAGER_URL} />
+      {nautical && <TileLayer attribution={SEAMARK_ATTRIBUTION} url={SEAMARK_URL} />}
       {marks.map((m) => (
         <CircleMarker
           key={m.name}

@@ -1,6 +1,12 @@
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Polyline, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { CourseMark } from '@/data/longDistanceMarks';
+import {
+  CARTO_ATTRIBUTION,
+  CARTO_VOYAGER_URL,
+  SEAMARK_ATTRIBUTION,
+  SEAMARK_URL,
+} from '@/lib/basemaps';
 
 /** Invisible helper that reports map clicks back up while `active`. */
 function ClickCapture({ active, onPick }: { active: boolean; onPick: (lat: number, lng: number) => void }) {
@@ -41,17 +47,9 @@ export default function CoursePlannerMap({
       preferCanvas
       style={{ height: '100%', width: '100%', background: '#eef1f4', cursor: placing ? 'crosshair' : undefined }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        crossOrigin="anonymous"
-      />
+      <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_VOYAGER_URL} crossOrigin="anonymous" />
       {nautical && (
-        <TileLayer
-          attribution='Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
-          url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
-          crossOrigin="anonymous"
-        />
+        <TileLayer attribution={SEAMARK_ATTRIBUTION} url={SEAMARK_URL} crossOrigin="anonymous" />
       )}
       {onPlacePick && <ClickCapture active={placing} onPick={onPlacePick} />}
 

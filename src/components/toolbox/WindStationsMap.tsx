@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import type { WindStation } from '@/data/windStations';
 import { BAND_COLOUR, type WindBand } from '@/lib/windBands';
 import { formatDirection } from '@/lib/compass';
+import { CARTO_ATTRIBUTION, CARTO_VOYAGER_URL } from '@/lib/basemaps';
 
 export type StationMapReading = {
   wind: number;
@@ -41,10 +42,7 @@ export default function WindStationsMap({
       scrollWheelZoom
       style={{ height: '100%', width: '100%', background: '#eef1f4' }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-      />
+      <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_VOYAGER_URL} />
       {stations.map((s) => {
         const r = readings[s.id];
         const colour = r ? BAND_COLOUR[r.band] : '#8a929c';
