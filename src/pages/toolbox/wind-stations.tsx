@@ -11,7 +11,7 @@ import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
 
-const REFRESH_MS = 5 * 60 * 1000;
+const REFRESH_MS = 3 * 60 * 1000;
 
 // Stations fed by the OMC / Ports live sensor network (see
 // cloudflare/bom-worker.js), which refreshes every few minutes — far more
@@ -217,7 +217,7 @@ export default function WindStations() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [liveAge, setLiveAge] = useState<number | null>(null);
   // Ticks every 30s purely so the "x min ago" label stays honest between the
-  // 5-minute data refreshes.
+  // 3-minute data refreshes.
   const [, setNowTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setNowTick((n) => n + 1), 30_000);
@@ -345,7 +345,7 @@ export default function WindStations() {
             Refresh
           </button>
           <span className="tb-mono text-[10.5px] text-[var(--tb-text-faint)]">
-            Auto-refreshes every 5 min
+            Auto-refreshes every 3 min
             {lastRefreshed ? ` · last ${lastRefreshed.toLocaleTimeString('en-AU')}` : ''}
           </span>
           {liveAge != null && liveAge >= LIVE_STALE_MINUTES && (

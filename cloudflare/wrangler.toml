@@ -9,7 +9,7 @@ main = "bom-worker.js"
 compatibility_date = "2024-09-01"
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/3 * * * *"]
 
 [[kv_namespaces]]
 binding = "BOM_DATA"

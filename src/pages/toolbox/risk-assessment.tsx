@@ -303,7 +303,7 @@ export default function AutoRisk() {
       <p className="no-print tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Pulls live weather and marine forecasts for Port Phillip and produces a go / no-go
         recommendation. Gale, storm and strong-wind warnings are read directly from the BOM
-        Marine Wind Warning Summary, refreshed every 5 minutes, alongside the BOM forecast
+        Marine Wind Warning Summary, refreshed every 3 minutes, alongside the BOM forecast
         text and Ports Victoria shipping movements. If that feed is unavailable, the report
         flags it clearly rather than silently assuming no warning is current.
       </p>
