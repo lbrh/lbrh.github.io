@@ -8,15 +8,21 @@
  * ranges regardless of headers — this is a straightforward re-host of
  * scripts/fetch_bom.py's logic for the Workers runtime.
  *
- * - Cron Trigger (every ~10 min): runs the fetch pipeline, stores the
- *   result in KV under the key "live".
+ * - Cron Trigger (every ~5 min): runs the fetch pipeline, stores the
+ *   result in KV under the key "live". The OMC/Ports-sourced stations
+ *   refresh every ~3 min upstream and BOM's automatic weather stations
+ *   every ~30 min, so ~5 min keeps our added lag small without hammering
+ *   either source. At 5-minute spacing this is ~288 KV writes/day, well
+ *   under the free plan's 1000/day.
  * - HTTP GET: returns the last stored KV value as JSON with CORS headers
  *   so the browser can read it directly (see src/lib/liveBom.ts).
  *
  * Deploy via the Cloudflare dashboard: Workers & Pages -> Create Worker,
  * paste this file in, bind a KV namespace to the binding name BOM_DATA,
- * and add a Cron Trigger under Settings -> Triggers (e.g. "*​/10 * * * *").
- * See wrangler.toml in this folder if deploying with the CLI instead.
+ * and add a Cron Trigger under Settings -> Triggers (e.g. "*​/5 * * * *").
+ * The dashboard cron is configured separately from wrangler.toml — if you
+ * change the interval, update it in both places. See wrangler.toml in this
+ * folder if deploying with the CLI instead.
  */
 
 const HEADERS = {

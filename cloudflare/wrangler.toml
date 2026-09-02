@@ -4,12 +4,12 @@
 # lets you paste the worker source directly and add the KV binding and
 # Cron Trigger through the UI instead.
 
-name = "bom-live-data"
+name = "bom-puller"
 main = "bom-worker.js"
 compatibility_date = "2024-09-01"
 
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["*/5 * * * *"]
 
 [[kv_namespaces]]
 binding = "BOM_DATA"

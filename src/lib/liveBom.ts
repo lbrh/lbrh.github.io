@@ -1,10 +1,10 @@
-// Refreshed every ~10 minutes by cloudflare/bom-worker.js on a Cron
+// Refreshed every ~5 minutes by cloudflare/bom-worker.js on a Cron
 // Trigger and served with CORS headers straight from the edge — no
 // backend of ours involved. (BOM returns 403 to every request from
 // GitHub Actions' Azure IP ranges, which is why this isn't a GitHub
 // Pages / raw.githubusercontent.com file like the rest of the site.)
 //
-const LIVE_DATA_URL = 'https://withered-water-16ab.lbrhounsell.workers.dev';
+const LIVE_DATA_URL = 'https://bom-puller.lbrhounsell.workers.dev';
 
 export type LiveHistoryPoint = {
   time: string;
@@ -69,10 +69,10 @@ export function resetLiveBomCache(): void {
   cache = null;
 }
 
-// The worker refreshes the feed every ~10 min. If generatedAt is much older
+// The worker refreshes the feed every ~5 min. If generatedAt is much older
 // than that, the upstream pipeline has stalled and the "live" readings are
 // really frozen — worth flagging rather than presenting as current.
-export const LIVE_STALE_MINUTES = 35;
+export const LIVE_STALE_MINUTES = 20;
 
 export function liveAgeMinutes(data: LiveBomData | null): number | null {
   const t = data?.generatedAt ? new Date(data.generatedAt).getTime() : NaN;

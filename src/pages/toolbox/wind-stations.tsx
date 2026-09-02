@@ -11,7 +11,31 @@ import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
 
-const REFRESH_MS = 10 * 60 * 1000;
+const REFRESH_MS = 5 * 60 * 1000;
+
+// Stations fed by the OMC / Ports live sensor network (see
+// cloudflare/bom-worker.js), which refreshes every few minutes — far more
+// often than BOM's automatic weather stations, which publish every ~30 min.
+const OMC_STATIONS = new Set(['fawkner', 'webb-dock', 'geelong', 'breakwater-pier']);
+
+// Relative age of an observation timestamp, e.g. "7 min ago".
+function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem ? `${hrs} h ${rem} min ago` : `${hrs} h ago`;
+}
+
+// Wall-clock time of an observation, e.g. "2:30 pm".
+function clockTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.replace('T', ' ');
+  return d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+}
 
 type StationState =
   | { status: 'loading' }
@@ -192,6 +216,13 @@ export default function WindStations() {
   const [selected, setSelected] = useState<string>(WIND_STATIONS[0].id);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [liveAge, setLiveAge] = useState<number | null>(null);
+  // Ticks every 30s purely so the "x min ago" label stays honest between the
+  // 5-minute data refreshes.
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   const loadAll = () => {
     const initial: Record<string, StationState> = {};
@@ -314,7 +345,7 @@ export default function WindStations() {
             Refresh
           </button>
           <span className="tb-mono text-[10.5px] text-[var(--tb-text-faint)]">
-            Auto-refreshes every 10 min
+            Auto-refreshes every 5 min
             {lastRefreshed ? ` · last ${lastRefreshed.toLocaleTimeString('en-AU')}` : ''}
           </span>
           {liveAge != null && liveAge >= LIVE_STALE_MINUTES && (
@@ -414,7 +445,11 @@ export default function WindStations() {
                     color: selectedState.data.current.source === 'bom' ? 'var(--tb-ok)' : 'var(--tb-text-faint)',
                   }}
                 >
-                  {selectedState.data.current.source === 'bom' ? 'Live BOM station' : 'Modelled'}
+                  {selectedState.data.current.source === 'bom'
+                    ? OMC_STATIONS.has(selectedStation.id)
+                      ? 'Live sensor'
+                      : 'Live BOM station'
+                    : 'Modelled'}
                 </span>
               )}
             </div>
@@ -457,7 +492,9 @@ export default function WindStations() {
 
             <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div>
-                <h3 className="tb-display mb-2 text-[14px]">Historical — Last 24h (BOM)</h3>
+                <h3 className="tb-display mb-2 text-[14px]">
+                  Historical — Last 24h ({OMC_STATIONS.has(selectedStation.id) ? 'Ports / OMC' : 'BOM'})
+                </h3>
                 <WindChart
                   times={historicalTimes}
                   wind={historicalWind}
@@ -479,11 +516,14 @@ export default function WindStations() {
             </div>
 
             <p className="tb-mono mt-3 text-[11px] text-[var(--tb-text-faint)]">
-              Last updated {selectedState.data.current.time.replace('T', ' ')} ·{' '}
+              Last reading at {clockTime(selectedState.data.current.time)} (
+              {timeAgo(selectedState.data.current.time)}) ·{' '}
               {selectedState.data.current.source === 'bom'
-                ? 'live reading from a BOM automatic weather station'
-                : 'modelled estimate, not a direct BOM station feed'}
-              . Historical chart is real BOM observations; predicted chart is always modelled.
+                ? OMC_STATIONS.has(selectedStation.id)
+                  ? 'live sensor from the Ports / OMC feed, refreshed every few minutes'
+                  : 'live BOM automatic weather station, which publishes every ~30 min'
+                : 'modelled estimate, not a live station feed'}
+              . Historical chart is real observations; predicted chart is always modelled.
             </p>
           </>
         ) : selectedState?.status === 'error' ? (

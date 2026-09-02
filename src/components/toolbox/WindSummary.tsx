@@ -6,7 +6,7 @@ import { formatDirection } from '@/lib/compass';
 import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
 import { fetchLiveBomData, resetLiveBomCache, liveAgeMinutes, LIVE_STALE_MINUTES } from '@/lib/liveBom';
 
-const REFRESH_MS = 10 * 60 * 1000;
+const REFRESH_MS = 5 * 60 * 1000;
 
 type StationState =
   | { status: 'loading' }
