@@ -67,6 +67,14 @@ const TOOLS: Tool[] = [
       'Read a photo of a handwritten or printed finish sheet into an editable table, matched against an exported boat list, and export a TopYacht FinishTime import CSV.',
     tags: ['AI', 'CSV'],
   },
+  {
+    n: '08',
+    title: 'VKX to CSV',
+    href: '/toolbox/vkx-to-csv',
+    blurb:
+      'Convert a Vakaros VKX telemetry log into a plain CSV of the GPS track — position, speed, course and orientation, one row per record.',
+    tags: ['CSV', 'Utility'],
+  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
@@ -108,7 +116,7 @@ export default function ToolboxIndex() {
         <title>Toolbox · Liam Robinson Hounsell</title>
         <meta
           name="description"
-          content="Seven browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes and finish sheet reading."
+          content="Eight browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes, finish sheet reading and VKX log conversion."
         />
         <meta name="theme-color" content="#ffffff" />
       </Head>
