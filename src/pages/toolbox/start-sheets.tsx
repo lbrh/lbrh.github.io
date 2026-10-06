@@ -379,7 +379,8 @@ export default function AutoStartSheetMaker() {
               {!hasDivision && (
                 <p className="text-[12px] text-[var(--tb-text-muted)]">
                   No division column found in this CSV. Add a{" "}
-                  <code className="tb-mono text-[11.5px]">DIVISION</code> column to enable this.
+                  <code className="tb-mono text-[11.5px]">DIVISION</code> or{" "}
+                  <code className="tb-mono text-[11.5px]">FLEET</code> column to enable this.
                 </p>
               )}
               <div className="ml-6 flex gap-6">

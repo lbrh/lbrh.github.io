@@ -4,7 +4,7 @@ export type SheetRow = Record<string, string | number>;
 export const REQUIRED_COLUMNS = ['BOATNAME', 'SAILNUM', 'PURHC'] as const;
 
 /** Column names TopYacht exports have used for the division field. */
-const DIVISION_ALIASES = ['DIVISION', 'DIV NO', 'DIVNO', 'DIV'];
+const DIVISION_ALIASES = ['DIVISION', 'FLEET', 'DIV NO', 'DIVNO', 'DIV'];
 
 export const DIVISION_HEADER = 'Division';
 
