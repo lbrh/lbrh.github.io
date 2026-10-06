@@ -3,6 +3,7 @@ import Papa from "papaparse";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
 import {
   findDivisionColumn,
+  findHandicapColumns,
   missingColumns,
   processEntrants,
   type RaceType,
@@ -35,6 +36,7 @@ export default function AutoStartSheetMaker() {
   const [raceType, setRaceType] = useState<RaceType | "">("");
   const [purhcPlus, setPurhcPlus] = useState(false);
   const [includeDivisions, setIncludeDivisions] = useState(false);
+  const [handicaps, setHandicaps] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<"division" | "sail">("division");
 
   const handleFile = (file: File) => {
@@ -58,6 +60,8 @@ export default function AutoStartSheetMaker() {
           return;
         }
         setRawRows(rows);
+        // PURHC is what the sheets showed before this was selectable, so keep it as the default.
+        setHandicaps(findHandicapColumns(rows[0]).filter((c) => c === "PURHC"));
       },
       error: (err) => {
         setError(`Failed to parse CSV: ${err.message}`);
@@ -75,14 +79,19 @@ export default function AutoStartSheetMaker() {
   const processed = useMemo(
     () =>
       rawRows && raceType
-        ? processEntrants(rawRows, { raceType, purhcPlus, includeDivisions, sortBy })
+        ? processEntrants(rawRows, { raceType, purhcPlus, includeDivisions, sortBy, handicaps })
         : null,
-    [rawRows, raceType, purhcPlus, includeDivisions, sortBy],
+    [rawRows, raceType, purhcPlus, includeDivisions, sortBy, handicaps],
   );
 
   // The division controls only mean something when the CSV actually has the column.
   const hasDivision = useMemo(
     () => (rawRows && rawRows.length ? !!findDivisionColumn(rawRows[0]) : false),
+    [rawRows],
+  );
+
+  const availableHandicaps = useMemo(
+    () => (rawRows && rawRows.length ? findHandicapColumns(rawRows[0]) : []),
     [rawRows],
   );
 
@@ -274,7 +283,7 @@ export default function AutoStartSheetMaker() {
       </h1>
       <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Upload a race entrants CSV (with <code>BOATNAME</code>, <code>SAILNUM</code>,{" "}
-        <code>PURHC</code> or <code>PHS</code> columns), set the event details, then generate printable start sheets.
+        and any handicap columns such as <code>PURHC</code> or <code>PHS</code>), set the event details, then generate printable start sheets.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
@@ -356,7 +365,29 @@ export default function AutoStartSheetMaker() {
             </label>
           </div>
 
-          {raceType === "pursuit" && (
+          {availableHandicaps.length > 0 && (
+            <div className="space-y-1">
+              <span className="tb-eyebrow">Handicaps to show</span>
+              <div className="flex flex-wrap gap-x-6 gap-y-1">
+                {availableHandicaps.map((c) => (
+                  <label key={c} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={handicaps.includes(c)}
+                      onChange={(e) =>
+                        setHandicaps((prev) =>
+                          e.target.checked ? [...prev, c] : prev.filter((x) => x !== c),
+                        )
+                      }
+                    />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {raceType === "pursuit" && handicaps.includes("PURHC") && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={purhcPlus} onChange={(e) => setPurhcPlus(e.target.checked)} />
               Include PURHC+ (+4 minutes)

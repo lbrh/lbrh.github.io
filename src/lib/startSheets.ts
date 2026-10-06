@@ -3,12 +3,15 @@ export type SheetRow = Record<string, string | number>;
 
 export const REQUIRED_COLUMNS = ['BOATNAME', 'SAILNUM'] as const;
 
-/** Handicap column names, in order of preference. PURHC is the TopYacht pursuit handicap. */
-const HANDICAP_ALIASES = ['PURHC', 'PHS', 'AMS', 'ORC'];
+/** Handicap columns a TopYacht export can contain, in display order. */
+const HANDICAP_COLUMNS = ['PURHC', 'PHS', 'AMS', 'ORC', 'CAS'];
 
-/** Returns the CSV's handicap column name, if it has one. */
-export function findHandicapColumn(firstRow: Record<string, unknown>): string | null {
-  return HANDICAP_ALIASES.find((a) => a in firstRow) ?? null;
+/** Pursuit handicap: drives pursuit start order and the PURHC+ option. */
+const PURSUIT_COLUMN = 'PURHC';
+
+/** Returns every handicap column present in the CSV. */
+export function findHandicapColumns(firstRow: Record<string, unknown>): string[] {
+  return HANDICAP_COLUMNS.filter((c) => c in firstRow);
 }
 
 /** Column names TopYacht exports have used for the division field. */
@@ -21,6 +24,8 @@ export interface ProcessOptions {
   purhcPlus: boolean;
   includeDivisions: boolean;
   sortBy: 'division' | 'sail';
+  /** Handicap columns to print. Anything not listed (or not in the CSV) is left out. */
+  handicaps: string[];
 }
 
 export interface ProcessedSheet {
@@ -31,9 +36,7 @@ export interface ProcessedSheet {
 }
 
 export function missingColumns(firstRow: Record<string, unknown>): string[] {
-  const missing: string[] = REQUIRED_COLUMNS.filter((c) => !(c in firstRow));
-  if (!findHandicapColumn(firstRow)) missing.push(HANDICAP_ALIASES.join(' / '));
-  return missing;
+  return REQUIRED_COLUMNS.filter((c) => !(c in firstRow));
 }
 
 /** Returns the CSV's division column name, if it has one. */
@@ -49,37 +52,53 @@ export function findDivisionColumn(firstRow: Record<string, unknown>): string | 
  */
 export function processEntrants(
   rawRows: Record<string, string>[],
-  { raceType, purhcPlus, includeDivisions, sortBy }: ProcessOptions,
+  { raceType, purhcPlus, includeDivisions, sortBy, handicaps }: ProcessOptions,
 ): ProcessedSheet {
-  const divCol = rawRows.length ? findDivisionColumn(rawRows[0]) : null;
-  const hcCol = rawRows.length ? findHandicapColumn(rawRows[0]) : null;
+  const first = rawRows[0] ?? {};
+  const divCol = rawRows.length ? findDivisionColumn(first) : null;
+  const shown = findHandicapColumns(first).filter((c) => handicaps.includes(c));
+  const hasPursuit = PURSUIT_COLUMN in first;
   const badHandicaps: string[] = [];
 
   const rows = rawRows.map((r) => {
-    const raw = String((hcCol ? r[hcCol] : '') ?? '').trim();
-    const num = Number(raw);
-    const ok = raw !== '' && Number.isFinite(num);
     const name = String(r['BOATNAME'] ?? '').trim();
-    if (!ok) badHandicaps.push(name || String(r['SAILNUM'] ?? '?'));
-    return {
+    const row: SheetRow = {
       'Boat Name': name,
       'Sail No': String(r['SAILNUM'] ?? '').trim(),
-      PURHC: ok ? num : 0,
-      ...(divCol ? { [DIVISION_HEADER]: String(r[divCol] ?? '').trim() } : {}),
     };
+    if (divCol) row[DIVISION_HEADER] = String(r[divCol] ?? '').trim();
+    for (const c of shown) row[c] = String(r[c] ?? '').trim();
+    // PURHC is read as a number for ordering and PURHC+, so it is checked even when hidden.
+    let pursuit = 0;
+    if (hasPursuit) {
+      const raw = String(r[PURSUIT_COLUMN] ?? '').trim();
+      const num = Number(raw);
+      if (raw !== '' && Number.isFinite(num)) pursuit = num;
+      else if (raceType === 'pursuit' || shown.includes(PURSUIT_COLUMN)) {
+        badHandicaps.push(name || String(r['SAILNUM'] ?? '?'));
+      }
+      if (shown.includes(PURSUIT_COLUMN)) row[PURSUIT_COLUMN] = pursuit;
+    }
+    return { row, pursuit };
   });
 
-  // Pursuit order is by handicap; fleet sheets start from the same baseline.
-  rows.sort((a, b) => a.PURHC - b.PURHC);
+  // Pursuit order is by PURHC; without one the list falls back to sail number below.
+  if (hasPursuit) rows.sort((a, b) => a.pursuit - b.pursuit);
 
   const showDivision = raceType === 'fleet' && includeDivisions && !!divCol;
-  let headers: string[] = showDivision
-    ? [DIVISION_HEADER, 'Boat Name', 'Sail No', 'PURHC']
-    : ['Boat Name', 'Sail No', 'PURHC'];
+  const plus = raceType === 'pursuit' && purhcPlus && shown.includes(PURSUIT_COLUMN);
+  const headers: string[] = [
+    ...(showDivision ? [DIVISION_HEADER] : []),
+    'Boat Name',
+    'Sail No',
+    ...shown,
+    ...(plus ? ['PURHC+ (with kite)'] : []),
+  ];
 
-  const data: SheetRow[] = rows.map((r) => {
-    const copy: SheetRow = { ...r };
+  const data: SheetRow[] = rows.map(({ row, pursuit }) => {
+    const copy: SheetRow = { ...row };
     if (!showDivision) delete copy[DIVISION_HEADER];
+    if (plus) copy['PURHC+ (with kite)'] = pursuit + 4;
     return copy;
   });
 
@@ -87,10 +106,7 @@ export function processEntrants(
     String(a['Sail No']).localeCompare(String(b['Sail No']), undefined, { numeric: true });
 
   if (raceType === 'pursuit') {
-    if (purhcPlus) {
-      for (const r of data) r['PURHC+ (with kite)'] = Number(r.PURHC) + 4;
-      headers = [...headers, 'PURHC+ (with kite)'];
-    }
+    if (!hasPursuit) data.sort(bySail);
   } else if (sortBy === 'division' && showDivision) {
     // Group by division, then by sail number within each division.
     data.sort((a, b) => {
