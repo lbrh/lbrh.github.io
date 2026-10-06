@@ -274,7 +274,7 @@ export default function AutoStartSheetMaker() {
       </h1>
       <p className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]" style={{ animationDelay: '0.04s' }}>
         Upload a race entrants CSV (with <code>BOATNAME</code>, <code>SAILNUM</code>,{" "}
-        <code>PURHC</code> columns), set the event details, then generate printable start sheets.
+        <code>PURHC</code> or <code>PHS</code> columns), set the event details, then generate printable start sheets.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>

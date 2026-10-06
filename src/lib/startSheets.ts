@@ -1,7 +1,15 @@
 export type RaceType = 'pursuit' | 'fleet';
 export type SheetRow = Record<string, string | number>;
 
-export const REQUIRED_COLUMNS = ['BOATNAME', 'SAILNUM', 'PURHC'] as const;
+export const REQUIRED_COLUMNS = ['BOATNAME', 'SAILNUM'] as const;
+
+/** Handicap column names, in order of preference. PURHC is the TopYacht pursuit handicap. */
+const HANDICAP_ALIASES = ['PURHC', 'PHS', 'AMS', 'ORC'];
+
+/** Returns the CSV's handicap column name, if it has one. */
+export function findHandicapColumn(firstRow: Record<string, unknown>): string | null {
+  return HANDICAP_ALIASES.find((a) => a in firstRow) ?? null;
+}
 
 /** Column names TopYacht exports have used for the division field. */
 const DIVISION_ALIASES = ['DIVISION', 'FLEET', 'DIV NO', 'DIVNO', 'DIV'];
@@ -23,7 +31,9 @@ export interface ProcessedSheet {
 }
 
 export function missingColumns(firstRow: Record<string, unknown>): string[] {
-  return REQUIRED_COLUMNS.filter((c) => !(c in firstRow));
+  const missing: string[] = REQUIRED_COLUMNS.filter((c) => !(c in firstRow));
+  if (!findHandicapColumn(firstRow)) missing.push(HANDICAP_ALIASES.join(' / '));
+  return missing;
 }
 
 /** Returns the CSV's division column name, if it has one. */
@@ -42,10 +52,11 @@ export function processEntrants(
   { raceType, purhcPlus, includeDivisions, sortBy }: ProcessOptions,
 ): ProcessedSheet {
   const divCol = rawRows.length ? findDivisionColumn(rawRows[0]) : null;
+  const hcCol = rawRows.length ? findHandicapColumn(rawRows[0]) : null;
   const badHandicaps: string[] = [];
 
   const rows = rawRows.map((r) => {
-    const raw = String(r['PURHC'] ?? '').trim();
+    const raw = String((hcCol ? r[hcCol] : '') ?? '').trim();
     const num = Number(raw);
     const ok = raw !== '' && Number.isFinite(num);
     const name = String(r['BOATNAME'] ?? '').trim();
