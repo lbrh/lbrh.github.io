@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
 import {
@@ -10,6 +10,7 @@ import {
   type SheetRow as Row,
 } from "@/lib/startSheets";
 
+const STORAGE_KEY = "toolbox:start-sheets:fields";
 const LOGO = "/race/logo.png";
 const LUNCH_QR = "/race/booking.png";
 const CREW_QR = "/race/MOB.png";
@@ -38,6 +39,32 @@ export default function AutoStartSheetMaker() {
   const [includeDivisions, setIncludeDivisions] = useState(false);
   const [handicaps, setHandicaps] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<"division" | "sail">("division");
+
+  // Remember the text fields between visits. Restored after mount (not in the
+  // initial state) so server and client render the same markup.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      if (typeof saved.eventName === "string") setEventName(saved.eventName);
+      if (typeof saved.raceNumber === "string") setRaceNumber(saved.raceNumber);
+      if (typeof saved.startTime === "string") setStartTime(saved.startTime);
+    } catch {
+      /* storage unavailable or corrupt; start blank */
+    }
+    setRestored(true);
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ eventName, raceNumber, startTime }),
+      );
+    } catch {
+      /* ignore quota / private-mode errors */
+    }
+  }, [restored, eventName, raceNumber, startTime]);
 
   const handleFile = (file: File) => {
     setError("");
