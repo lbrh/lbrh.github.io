@@ -21,6 +21,30 @@ export type StationData = {
   bomHistory: LiveHistoryPoint[] | null;
 };
 
+const MAX_ATTEMPTS = 4;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Firing every station at once trips Open-Meteo's rate limit (HTTP 429) or
+// drops connections, so a request is retried with a growing delay before the
+// caller sees a failure. Callers keep showing "Loading" until this settles.
+async function fetchWithRetry(url: string): Promise<Response> {
+  let lastError: unknown = new Error('Request failed');
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) await sleep(800 * 2 ** (attempt - 1) + Math.random() * 400);
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      lastError = new Error(`HTTP ${res.status}`);
+      // Client errors other than rate limiting will not succeed on retry.
+      if (res.status < 500 && res.status !== 429) break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
 export async function fetchStationWind(station: WindStation): Promise<StationData> {
   // Wind is requested at Open-Meteo's minutely_15 resolution (still model
   // data, just resampled finer) rather than hourly — a real ~4x jump in
@@ -38,8 +62,7 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
     `https://marine-api.open-meteo.com/v1/marine?latitude=${station.lat}&longitude=${station.lng}` +
     `&hourly=wave_height&timezone=Australia%2FSydney&forecast_days=2`;
 
-  const [fRes, mRes] = await Promise.all([fetch(forecastUrl), fetch(marineUrl).catch(() => null)]);
-  if (!fRes.ok) throw new Error(`HTTP ${fRes.status}`);
+  const [fRes, mRes] = await Promise.all([fetchWithRetry(forecastUrl), fetchWithRetry(marineUrl).catch(() => null)]);
   const weather = await fRes.json();
 
   const time: string[] = weather.minutely_15.time;

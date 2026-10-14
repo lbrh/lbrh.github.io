@@ -235,8 +235,9 @@ export default function WindStations() {
     const live = fetchLiveBomData();
     live.then((d) => setLiveAge(liveAgeMinutes(d)));
 
-    WIND_STATIONS.forEach((station) => {
-      Promise.all([fetchStationWind(station), live])
+    WIND_STATIONS.forEach((station, i) => {
+      // Stagger starts so the burst doesn't trip the forecast API's rate limit.
+      Promise.all([new Promise((r) => setTimeout(r, i * 150)).then(() => fetchStationWind(station)), live])
         .then(([data, liveData]) => {
           const merged = withLiveReading(data, liveData?.stations[station.id]);
           setStates((prev) => ({ ...prev, [station.id]: { status: 'ok', data: merged } }));
