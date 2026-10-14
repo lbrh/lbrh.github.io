@@ -52,6 +52,8 @@ For every row on the sheet, extract:
 - hr, min, sec: the finish time, each as a zero padded two digit string (24 hour clock). If only minutes and seconds are written, infer the hour from context (e.g. the race start time written elsewhere on the sheet) and set "hourGuessed": true
 - note: any extra annotation such as DNF, DNC, DSQ, RET, OCS - empty string if there is none
 
+Important: assume the boats are listed in chronological order, so the finish times should increase (or stay equal) from one row to the next, and place numbers should run 1, 2, 3 and so on. Only treat the order as wrong if it is blatantly obvious that it is (for example a time that is clearly far earlier than the rows around it, with no plausible misreading). When a digit in a time or sail number is hard to read, use the neighbouring rows' times to pick the reading that keeps the sequence in order, and prefer the reading that fits the order over one that breaks it. Do not reorder rows: keep them in the order written on the sheet.
+
 Return ONLY a raw JSON array, no markdown code fences, no commentary before or after. Example shape:
 [{"place": 1, "sailNum": "R281", "hr": "16", "min": "09", "sec": "21", "note": "", "hourGuessed": false}]`;
 
