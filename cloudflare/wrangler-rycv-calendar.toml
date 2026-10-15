@@ -1,0 +1,9 @@
+# Reference config for deploying rycv-calendar-worker.js with the Wrangler CLI
+# (`npx wrangler deploy -c wrangler-rycv-calendar.toml` from this directory).
+# Not required for a dashboard-based deploy: paste the worker source into
+# Workers & Pages -> Create Worker and click Deploy. No KV, secrets or cron
+# are needed because the Google calendars are public.
+
+name = "rycv-calendar"
+main = "rycv-calendar-worker.js"
+compatibility_date = "2024-09-01"
