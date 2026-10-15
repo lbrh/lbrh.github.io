@@ -4,6 +4,7 @@ import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import {
   blankRow,
   buildBoatMap,
+  findDuplicateSails,
   missingBoatColumns,
   parseExtractedRows,
   rematchRow,
@@ -236,7 +237,8 @@ export default function FinishSheetReader() {
     });
   }, [rows]);
 
-  const invalidCount = rows ? rows.filter((r) => !rowIsValid(validateRow(r))).length : 0;
+  const duplicateSails = useMemo(() => (rows ? findDuplicateSails(rows) : new Set<string>()), [rows]);
+  const invalidCount = rows ? rows.filter((r) => !rowIsValid(validateRow(r, duplicateSails))).length : 0;
   const canExport = !!rows && rows.length > 0 && invalidCount === 0;
 
   const exportCsv = () => {
@@ -349,8 +351,8 @@ export default function FinishSheetReader() {
         {rows && invalidCount > 0 && (
           <p className="mt-4 rounded-[3px] border border-[var(--tb-warn)]/40 bg-[#fffaeb] p-3 text-sm text-[var(--tb-warn)]">
             {invalidCount} row{invalidCount === 1 ? '' : 's'} {invalidCount === 1 ? 'has' : 'have'} a problem,
-            highlighted below — usually a sail number that didn&apos;t match the boat list, or a place/time
-            out of range. Export is disabled until these are fixed.
+            highlighted below — usually a sail number that didn&apos;t match the boat list or appears twice, or a
+            place/time out of range. Export is disabled until these are fixed.
           </p>
         )}
       </div>
@@ -381,7 +383,7 @@ export default function FinishSheetReader() {
             </thead>
             <tbody>
               {sortedRows.map((r) => {
-                const v = validateRow(r);
+                const v = validateRow(r, duplicateSails);
                 const invalidStyle = { borderColor: 'var(--tb-danger)', background: '#fef3f2' };
                 return (
                   <tr key={r.id} style={!rowIsValid(v) ? { background: '#fffaeb' } : undefined}>
@@ -398,8 +400,14 @@ export default function FinishSheetReader() {
                         className="tb-input w-24 px-2 py-1 text-sm"
                         value={r.sailNum}
                         onChange={(e) => updateRow(r.id, { sailNum: e.target.value })}
-                        title={!v.sailNum ? "Doesn't match a sail number in the boat list." : undefined}
-                        style={!v.sailNum ? invalidStyle : undefined}
+                        title={
+                          !v.sailNum
+                            ? "Doesn't match a sail number in the boat list."
+                            : !v.unique
+                              ? 'Duplicate: this sail number is already on another row.'
+                              : undefined
+                        }
+                        style={!v.sailNum || !v.unique ? invalidStyle : undefined}
                       />
                     </td>
                     <td>

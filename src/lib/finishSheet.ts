@@ -183,6 +183,8 @@ function isIntInRange(v: string, min: number, max: number): boolean {
 export type RowValidation = {
   place: boolean;
   sailNum: boolean;
+  /** false when another row has the same sail number (a boat can only finish once). */
+  unique: boolean;
   boat: boolean;
   fleet: boolean;
   hr: boolean;
@@ -195,10 +197,12 @@ export type RowValidation = {
  * boat and fleet must match an entrant from the boat list, and HR/MN/SC
  * must be in range. DidNot isn't validated — it's always exported blank.
  */
-export function validateRow(row: FinishRow): RowValidation {
+export function validateRow(row: FinishRow, duplicates?: Set<string>): RowValidation {
+  const sail = normalizeSail(row.sailNum);
   return {
     place: isIntInRange(row.place, 1, 9999),
     sailNum: row.matched,
+    unique: !(sail && duplicates?.has(sail)),
     boat: row.matched && row.boat.trim() !== '',
     fleet: row.matched && row.fleet.trim() !== '',
     hr: isIntInRange(row.hr, 0, 23),
@@ -208,7 +212,20 @@ export function validateRow(row: FinishRow): RowValidation {
 }
 
 export function rowIsValid(v: RowValidation): boolean {
-  return v.place && v.sailNum && v.boat && v.fleet && v.hr && v.mm && v.ss;
+  return v.place && v.sailNum && v.unique && v.boat && v.fleet && v.hr && v.mm && v.ss;
+}
+
+/** Normalized sail numbers that appear on more than one row, so the same boat can't be entered twice. */
+export function findDuplicateSails(rows: FinishRow[]): Set<string> {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const r of rows) {
+    const sail = normalizeSail(r.sailNum);
+    if (!sail) continue;
+    if (seen.has(sail)) dupes.add(sail);
+    else seen.add(sail);
+  }
+  return dupes;
 }
 
 /** Sorts by place (numeric, blanks/unparsable last) and formats as the TopYacht FinishTime import CSV. DidNot is always left blank. */
