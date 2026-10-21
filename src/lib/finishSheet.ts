@@ -84,7 +84,7 @@ export function parseExtractedRows(input: unknown): ExtractedRow[] {
 
 const SAIL_ALIASES = ['SAILNUM', 'SAIL NO', 'SAIL_NO', 'SAILNO', 'SAIL NUMBER'];
 const BOAT_ALIASES = ['BOATNAME', 'BOAT NAME', 'BOAT'];
-const FLEET_ALIASES = ['FLEET'];
+const FLEET_ALIASES = ['FLEET', 'KBCLASSNAME', 'CLASSNAME', 'CLASS'];
 
 function findColumn(firstRow: Record<string, unknown>, aliases: string[]): string | null {
   return Object.keys(firstRow).find((k) => aliases.includes(k.trim().toUpperCase())) ?? null;
