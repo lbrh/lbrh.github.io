@@ -24,6 +24,7 @@ export const PORT_PHILLIP_MARKS: Mark[] = [
   { name: 'Gellibrand Shoal Mark', description: 'An East Cardinal Mark', lat: -37.876867, lng: 144.914667, category: 'Cardinal' },
   { name: 'Lipton A', description: 'Orange inflatable, white band', lat: -37.886467, lng: 144.894833, category: 'Racing' },
   { name: 'Lipton B', description: 'Orange inflatable, white band', lat: -37.856067, lng: 144.941583, category: 'Racing' },
+  { name: 'Lipton Start Line', description: 'Lipton Regatta start line', lat: -37.86276, lng: 144.94842, category: 'Racing' },
   { name: 'Outer Anchorage', description: 'A pile with a light frame', lat: -37.948117, lng: 144.85815, category: 'Other' },
   { name: 'P2', description: 'A yellow buoy marked P2', lat: -37.923767, lng: 144.886383, category: 'Racing' },
   { name: 'P3', description: 'A pile with light frame', lat: -37.8897, lng: 144.8808, category: 'Racing' },

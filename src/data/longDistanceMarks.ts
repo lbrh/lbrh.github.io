@@ -45,6 +45,7 @@ export const LONG_DISTANCE_MARKS: CourseMark[] = [
   { name: 'Gellibrand Shoal Mark', description: 'An East Cardinal Mark', light: '—', lat: -37.876867, lng: 144.914667 },
   { name: 'Lipton A', description: 'Orange inflatable, white band', light: 'No lights', lat: -37.886467, lng: 144.894833 },
   { name: 'Lipton B', description: 'Orange inflatable, white band', light: 'No lights', lat: -37.856067, lng: 144.941583 },
+  { name: 'Lipton Start Line', description: 'Lipton Regatta start line', light: 'No lights', lat: -37.86276, lng: 144.94842 },
   { name: 'Pt Cook East Cardinal Mark', description: 'An East Cardinal Mark', light: '—', lat: -37.9263, lng: 144.8149 },
   { name: 'Pt Cook Sanctuary Limit Mark', description: 'Yellow special purpose beacon', light: '—', lat: -37.929, lng: 144.8115 },
   { name: 'RMYS A', description: 'Yellow Sealite 1500mm Navigation Buoy', light: 'Y Fl(4) Y 10s', lat: -37.865017, lng: 144.957983 },
