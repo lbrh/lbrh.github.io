@@ -53,6 +53,7 @@ export default function CoursePlanner() {
   const [exportingPng, setExportingPng] = useState(false);
   const [exportError, setExportError] = useState('');
   const [nautical, setNautical] = useState(false);
+  const [ahoChart, setAhoChart] = useState(false);
   const [customMarks, setCustomMarks] = useState<CourseMark[]>([]);
   const [addingMark, setAddingMark] = useState(false);
   const [placingMark, setPlacingMark] = useState(false);
@@ -432,7 +433,15 @@ ${rtepts}
 
         {/* Map */}
         <div className="tb-card overflow-hidden">
-          <div className="flex items-center justify-end border-b border-[var(--tb-border)] px-3 py-2">
+          <div className="flex items-center justify-end gap-4 border-b border-[var(--tb-border)] px-3 py-2">
+            <label className="flex items-center gap-1.5 text-[11px]">
+              <input
+                type="checkbox"
+                checked={ahoChart}
+                onChange={(e) => setAhoChart(e.target.checked)}
+              />
+              AHO chart (Port Phillip)
+            </label>
             <label className="flex items-center gap-1.5 text-[11px]">
               <input
                 type="checkbox"
@@ -448,6 +457,7 @@ ${rtepts}
               route={route}
               onMarkClick={addMark}
               nautical={nautical}
+              ahoChart={ahoChart}
               placing={placingMark}
               onPlacePick={onPlacePick}
             />

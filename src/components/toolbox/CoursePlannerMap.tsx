@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Polyline, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { CourseMark } from '@/data/longDistanceMarks';
+import AhoChartLayer from './AhoChartLayer';
 import {
   CARTO_ATTRIBUTION,
   CARTO_VOYAGER_URL,
@@ -23,6 +24,7 @@ export default function CoursePlannerMap({
   route,
   onMarkClick,
   nautical = false,
+  ahoChart = false,
   placing = false,
   onPlacePick,
 }: {
@@ -30,6 +32,7 @@ export default function CoursePlannerMap({
   route: string[];
   onMarkClick: (name: string) => void;
   nautical?: boolean;
+  ahoChart?: boolean;
   placing?: boolean;
   onPlacePick?: (lat: number, lng: number) => void;
 }) {
@@ -51,6 +54,7 @@ export default function CoursePlannerMap({
       {nautical && (
         <TileLayer attribution={SEAMARK_ATTRIBUTION} url={SEAMARK_URL} crossOrigin="anonymous" />
       )}
+      {ahoChart && <AhoChartLayer />}
       {onPlacePick && <ClickCapture active={placing} onPick={onPlacePick} />}
 
       {routeLatLngs.length > 1 && (

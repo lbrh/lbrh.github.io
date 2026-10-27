@@ -20,3 +20,17 @@ export const SEAMARK_URL = 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png
 
 export const SEAMARK_ATTRIBUTION =
   'Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a>';
+
+// Australian Hydrographic Office ENC Series: a public image service (no tile
+// endpoint), so it is requested with exportImage. Not for navigation.
+export const AHO_ENC_EXPORT_URL =
+  'https://services.hydro.gov.au/site1/rest/services/Basemaps/AHOENCSeries/ImageServer/exportImage';
+
+export const AHO_ATTRIBUTION =
+  'Chart &copy; <a href="https://www.hydro.gov.au">Australian Hydrographic Office</a> (not for navigation)';
+
+// [south, west], [north, east] — limits chart requests to Port Phillip.
+export const PORT_PHILLIP_BOUNDS: [[number, number], [number, number]] = [
+  [-38.55, 144.3],
+  [-37.75, 145.3],
+];
