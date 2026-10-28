@@ -90,6 +90,11 @@ function findColumn(firstRow: Record<string, unknown>, aliases: string[]): strin
   return Object.keys(firstRow).find((k) => aliases.includes(k.trim().toUpperCase())) ?? null;
 }
 
+/** True if the boat list has a recognizable fleet/class column. */
+export function hasFleetColumn(firstRow: Record<string, unknown>): boolean {
+  return findColumn(firstRow, FLEET_ALIASES) !== null;
+}
+
 /** Returns the missing required column names (empty if the CSV looks usable), for a validation message. */
 export function missingBoatColumns(firstRow: Record<string, unknown>): string[] {
   const missing: string[] = [];

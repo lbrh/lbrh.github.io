@@ -4,6 +4,7 @@ import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import {
   blankRow,
   buildBoatMap,
+  hasFleetColumn,
   findDuplicateSails,
   missingBoatColumns,
   parseExtractedRows,
@@ -196,6 +197,11 @@ export default function FinishSheetReader() {
         const map = buildBoatMap(data);
         setBoatMap(map);
         setError('');
+        if (!hasFleetColumn(data[0])) {
+          setBoatError(
+            `No fleet column found in "${file.name}" (columns: ${Object.keys(data[0]).join(', ')}). Re-export the boat list with the fleet/class column (e.g. KBCLASSNAME), otherwise every row will show a blank fleet.`,
+          );
+        }
         // Re-match any rows already on screen against the freshly loaded list.
         setRows((prev) => (prev ? prev.map((r) => rematchRow(r, map)) : prev));
       },
