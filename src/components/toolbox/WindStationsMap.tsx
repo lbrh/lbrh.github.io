@@ -5,6 +5,8 @@ import type { WindStation } from '@/data/windStations';
 import { BAND_COLOUR, type WindBand } from '@/lib/windBands';
 import { formatDirection } from '@/lib/compass';
 import { CARTO_ATTRIBUTION, CARTO_VOYAGER_URL } from '@/lib/basemaps';
+import type { RadarFrame } from '@/lib/rainRadar';
+import RainRadarLayer from './RainRadarLayer';
 
 export type StationMapReading = {
   wind: number;
@@ -29,11 +31,14 @@ export default function WindStationsMap({
   readings,
   selected,
   onSelect,
+  radar,
 }: {
   stations: WindStation[];
   readings: Record<string, StationMapReading | undefined>;
   selected: string;
   onSelect: (id: string) => void;
+  /** Radar frames and the one to show, or null to hide the radar. */
+  radar?: { frames: RadarFrame[]; index: number } | null;
 }) {
   return (
     <MapContainer
@@ -43,6 +48,7 @@ export default function WindStationsMap({
       style={{ height: '100%', width: '100%', background: '#eef1f4' }}
     >
       <TileLayer attribution={CARTO_ATTRIBUTION} url={CARTO_VOYAGER_URL} />
+      {radar && radar.frames.length > 0 && <RainRadarLayer frames={radar.frames} index={radar.index} />}
       {stations.map((s) => {
         const r = readings[s.id];
         const colour = r ? BAND_COLOUR[r.band] : '#8a929c';

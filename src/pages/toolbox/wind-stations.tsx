@@ -8,10 +8,17 @@ import { formatDirection, toCompass } from '@/lib/compass';
 import { fetchStationWind, withLiveReading, type StationData } from '@/lib/windStationsApi';
 import { fetchLiveBomData, resetLiveBomCache, liveAgeMinutes, LIVE_STALE_MINUTES } from '@/lib/liveBom';
 import type { StationMapReading } from '@/components/toolbox/WindStationsMap';
+import { fetchRadarFrames, latestObservedIndex, RADAR_LEGEND_GRADIENT, type RadarFrame } from '@/lib/rainRadar';
 
 const WindStationsMap = dynamic(() => import('@/components/toolbox/WindStationsMap'), { ssr: false });
 
 const REFRESH_MS = 3 * 60 * 1000;
+
+// RainViewer publishes a new radar frame every 10 minutes.
+const RADAR_REFRESH_MS = 5 * 60 * 1000;
+const RADAR_FRAME_MS = 500;
+// Linger on the newest frame before the animation loops back round.
+const RADAR_HOLD_MS = 1500;
 
 // Stations fed by the OMC / Ports live sensor network (see
 // cloudflare/bom-worker.js), which refreshes every few minutes — far more
@@ -35,6 +42,17 @@ function clockTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso.replace('T', ' ');
   return d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+}
+
+// Scan time of a radar frame, such as "2:30 pm (20 min ago)".
+function radarTimeLabel(frame: RadarFrame): string {
+  const d = new Date(frame.time * 1000);
+  const clock = d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+  if (frame.forecast) {
+    const mins = Math.max(0, Math.round((d.getTime() - Date.now()) / 60000));
+    return `${clock} (forecast, +${mins} min)`;
+  }
+  return `${clock} (${timeAgo(d.toISOString())})`;
 }
 
 type StationState =
@@ -216,6 +234,12 @@ export default function WindStations() {
   const [selected, setSelected] = useState<string>(WIND_STATIONS[0].id);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [liveAge, setLiveAge] = useState<number | null>(null);
+  const [radarOn, setRadarOn] = useState(true);
+  const [radarFrames, setRadarFrames] = useState<RadarFrame[]>([]);
+  // Scan time of the frame on show; null follows the newest observed frame.
+  const [radarTime, setRadarTime] = useState<number | null>(null);
+  const [radarPlaying, setRadarPlaying] = useState(false);
+  const [radarError, setRadarError] = useState<string | null>(null);
   // Ticks every 30s purely so the "x min ago" label stays honest between the
   // 3-minute data refreshes.
   const [, setNowTick] = useState(0);
@@ -268,6 +292,44 @@ export default function WindStations() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, router.query.station]);
+
+  useEffect(() => {
+    if (!radarOn) return;
+    let cancelled = false;
+    const load = () =>
+      fetchRadarFrames()
+        .then((frames) => {
+          if (cancelled) return;
+          setRadarFrames(frames);
+          setRadarError(null);
+        })
+        .catch((e) => {
+          if (!cancelled) setRadarError(e instanceof Error ? e.message : String(e));
+        });
+    load();
+    const interval = setInterval(load, RADAR_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [radarOn]);
+
+  const radarIndex = useMemo(() => {
+    if (radarTime != null) {
+      const i = radarFrames.findIndex((f) => f.time === radarTime);
+      if (i >= 0) return i;
+    }
+    return latestObservedIndex(radarFrames);
+  }, [radarFrames, radarTime]);
+
+  useEffect(() => {
+    if (!radarOn || !radarPlaying || radarFrames.length < 2) return;
+    const delay = radarIndex === radarFrames.length - 1 ? RADAR_HOLD_MS : RADAR_FRAME_MS;
+    const t = setTimeout(() => setRadarTime(radarFrames[(radarIndex + 1) % radarFrames.length].time), delay);
+    return () => clearTimeout(t);
+  }, [radarOn, radarPlaying, radarFrames, radarIndex]);
+
+  const radarFrame = radarFrames[radarIndex];
 
   const selectedStation = WIND_STATIONS.find((s) => s.id === selected)!;
   const selectedState = states[selected];
@@ -338,7 +400,8 @@ export default function WindStations() {
           >
             Wind speed, gusts and direction at eight points spread around Port Phillip, colour-coded by
             strength — real BOM station readings where one exists, modelled estimates elsewhere. Select a
-            card or a marker on the map for its full 24-hour forecast.
+            card or a marker on the map for its full 24-hour forecast. The map also carries a rain radar
+            overlay that can be played back over the last couple of hours.
           </p>
         </div>
         <div className="tb-anim-rise flex flex-col items-end gap-1" style={{ animationDelay: '0.04s' }}>
@@ -425,13 +488,71 @@ export default function WindStations() {
         })}
       </div>
 
-      <div className="tb-anim-rise tb-card mt-6 h-[360px] overflow-hidden sm:h-[440px]" style={{ animationDelay: '0.1s' }}>
-        <WindStationsMap
-          stations={WIND_STATIONS}
-          readings={mapReadings}
-          selected={selected}
-          onSelect={setSelected}
-        />
+      <div className="tb-anim-rise tb-card mt-6 overflow-hidden" style={{ animationDelay: '0.1s' }}>
+        <div className="flex min-h-[38px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--tb-border)] px-3 py-2">
+          <label className="flex items-center gap-1.5 text-[11px]">
+            <input
+              type="checkbox"
+              checked={radarOn}
+              onChange={(e) => {
+                setRadarOn(e.target.checked);
+                if (!e.target.checked) setRadarPlaying(false);
+              }}
+            />
+            Rain radar
+          </label>
+          {radarOn &&
+            (radarFrame ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setRadarPlaying((p) => !p)}
+                    className="tb-btn-ghost w-[52px] py-0.5 text-[11px]"
+                    aria-label={radarPlaying ? 'Pause radar loop' : 'Play radar loop'}
+                  >
+                    {radarPlaying ? 'Pause' : 'Play'}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={radarFrames.length - 1}
+                    value={radarIndex}
+                    onChange={(e) => {
+                      setRadarPlaying(false);
+                      setRadarTime(radarFrames[Number(e.target.value)].time);
+                    }}
+                    aria-label="Radar frame"
+                    className="w-28 sm:w-40"
+                    style={{ accentColor: 'var(--tb-accent)' }}
+                  />
+                  <span className="tb-mono whitespace-nowrap text-[10.5px] text-[var(--tb-text-muted)]">
+                    {radarTimeLabel(radarFrame)}
+                  </span>
+                </div>
+                <div className="tb-mono flex items-center gap-1.5 text-[10px] text-[var(--tb-text-faint)] sm:ml-auto">
+                  Light
+                  <span
+                    className="inline-block h-2 w-16 rounded-[2px]"
+                    style={{ background: RADAR_LEGEND_GRADIENT }}
+                  />
+                  Heavy
+                </div>
+              </>
+            ) : radarError ? (
+              <span className="tb-mono text-[10.5px] text-[var(--tb-danger)]">Radar unavailable</span>
+            ) : (
+              <span className="tb-mono text-[10.5px] text-[var(--tb-text-faint)]">Loading radar…</span>
+            ))}
+        </div>
+        <div className="h-[360px] sm:h-[440px]">
+          <WindStationsMap
+            stations={WIND_STATIONS}
+            readings={mapReadings}
+            selected={selected}
+            onSelect={setSelected}
+            radar={radarOn ? { frames: radarFrames, index: radarIndex } : null}
+          />
+        </div>
       </div>
 
       <div className="tb-anim-rise tb-card mt-6 p-6" style={{ animationDelay: '0.12s' }}>
