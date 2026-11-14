@@ -75,6 +75,22 @@ const TOOLS: Tool[] = [
       'Convert a Vakaros VKX telemetry log into a plain CSV of the GPS track — position, speed, course and orientation, one row per record.',
     tags: ['CSV', 'Utility'],
   },
+  {
+    n: '09',
+    title: 'Start Sequence Calculator',
+    href: '/toolbox/start-sequence',
+    blurb:
+      'Work out every flag and sound signal back from a starting time, for one class or several, with a live countdown and optional horn beeps.',
+    tags: ['Utility', 'Live'],
+  },
+  {
+    n: '10',
+    title: 'Notice to Competitors Generator',
+    href: '/toolbox/notice-generator',
+    blurb:
+      'Generate a Notice to Competitors with the correct race signal flag shown, ready to post on the board or download as a PDF.',
+    tags: ['Print', 'Export'],
+  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
@@ -116,7 +132,7 @@ export default function ToolboxIndex() {
         <title>Toolbox · Liam Robinson Hounsell</title>
         <meta
           name="description"
-          content="Eight browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes, finish sheet reading and VKX log conversion."
+          content="Ten browser-based tools for sailing race management — course diagrams, risk assessment, course planning, mark reference, start sheets, QR codes, finish sheet reading, VKX log conversion, a start sequence calculator and a notice to competitors generator."
         />
         <meta name="theme-color" content="#ffffff" />
       </Head>
