@@ -290,7 +290,14 @@ export function buildNoticePdfPages(
   if (images.extra) {
     const { w, h } = fit(images.extra, BODY_W, 220);
     if (y + h > BOTTOM - 40) newPage();
-    page.push({ k: "image", id: EXTRA_ID, x: LEFT, y, w, h });
+    page.push({
+      k: "image",
+      id: EXTRA_ID,
+      x: LEFT + (BODY_W - w) / 2,
+      y,
+      w,
+      h,
+    });
     y += h + 14;
   }
   if (form.rationale.trim()) {

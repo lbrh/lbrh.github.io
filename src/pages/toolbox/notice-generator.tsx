@@ -515,7 +515,7 @@ export default function NoticeGenerator() {
               <img
                 src={form.imageData}
                 alt=""
-                className="my-3 max-h-[220px] max-w-full object-contain"
+                className="mx-auto my-3 block max-h-[220px] max-w-full object-contain"
               />
             )}
             {form.rationale.trim() && (
