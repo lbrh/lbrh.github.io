@@ -7,12 +7,32 @@
  */
 import { FLAG_BY_ID, flagOutline, type FlagId } from "./raceFlags";
 import type { NoticeType, NoticeVariant } from "./noticeTypes";
-import { wrapText, type PdfPrim } from "./pdfWriter";
+import { wrapText, type PdfImage, type PdfPrim } from "./pdfWriter";
 
 export const PAGE_W = 595;
 export const PAGE_H = 842;
-export const CREST_URL = "/rycv-crest.jpg";
-export const CREST_ID = "Crest";
+export const LOGO_ID = "Logo";
+export const EXTRA_ID = "Extra";
+
+/** Corner logos offered in the generator; "custom" uses an uploaded file. */
+export const LOGO_OPTIONS = [
+  { id: "rycv", label: "RYCV crest", url: "/rycv-crest.jpg" },
+  { id: "lipton", label: "Lipton Cup Regatta", url: "/lipton-cup-logo.png" },
+  { id: "custom", label: "Upload your own...", url: "" },
+  { id: "none", label: "No logo", url: "" },
+];
+
+/** Where to load the chosen corner logo from, or null for none. */
+export function logoSrc(form: NoticeForm): string | null {
+  if (form.logoId === "custom") return form.logoData || null;
+  return LOGO_OPTIONS.find((l) => l.id === form.logoId)?.url || null;
+}
+
+/** Fit a w x h image inside a box, keeping its aspect ratio. */
+function fit(img: PdfImage, maxW: number, maxH: number) {
+  const s = Math.min(maxW / img.width, maxH / img.height);
+  return { w: img.width * s, h: img.height * s };
+}
 
 // The page border, and the content area inside it.
 export const BORDER = { x: 50, y: 60, w: 495, h: 722 };
@@ -34,6 +54,11 @@ export interface NoticeForm {
   extra: Record<string, string>;
   body: string;
   rationale: string;
+  logoId: string;
+  /** Data URL of an uploaded corner logo (logoId "custom"). */
+  logoData: string;
+  /** Data URL of an optional picture between the body and the rationale. */
+  imageData: string;
   officerName: string;
   officerRole: string;
 }
@@ -163,7 +188,7 @@ export function buildNoticePdfPages(
   form: NoticeForm,
   type: NoticeType,
   variant: NoticeVariant,
-  hasCrest = true,
+  images: { logo?: PdfImage | null; extra?: PdfImage | null } = {},
 ): PdfPrim[][] {
   const flagIds = variant.flags(form.extra);
   const pages: PdfPrim[][] = [];
@@ -172,14 +197,15 @@ export function buildNoticePdfPages(
   const ink = "#1a1a1a";
 
   // Header block: crest left, title centred, flags right.
-  if (hasCrest) {
+  if (images.logo) {
+    const { w, h } = fit(images.logo, 84, 84);
     page.push({
       k: "image",
-      id: CREST_ID,
+      id: LOGO_ID,
       x: LEFT - 8,
       y: BORDER.y + 14,
-      w: 60,
-      h: 84,
+      w,
+      h,
     });
   }
   page.push(
@@ -261,6 +287,12 @@ export function buildNoticePdfPages(
   const applies = appliesTo(form);
   if (applies) block(applies);
   if (form.body.trim()) block(form.body);
+  if (images.extra) {
+    const { w, h } = fit(images.extra, BODY_W, 220);
+    if (y + h > BOTTOM - 40) newPage();
+    page.push({ k: "image", id: EXTRA_ID, x: LEFT, y, w, h });
+    y += h + 14;
+  }
   if (form.rationale.trim()) {
     block("Rationale:", true);
     block(form.rationale);

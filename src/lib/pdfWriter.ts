@@ -71,7 +71,48 @@ export async function loadJpeg(url: string): Promise<PdfImage | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-    const buf = new Uint8Array(await res.arrayBuffer());
+    return parseJpeg(new Uint8Array(await res.arrayBuffer()));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Load any browser-readable image (PNG, JPEG, WebP, a data URL...) and
+ * re-encode it as a baseline JPEG on a white background, so it can be
+ * embedded with the same DCTDecode path. Large images are scaled down.
+ */
+export async function rasterToJpeg(
+  src: string,
+  maxPx = 1400,
+): Promise<PdfImage | null> {
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    const scale = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/jpeg", 0.92),
+    );
+    if (!blob) return null;
+    return parseJpeg(new Uint8Array(await blob.arrayBuffer()));
+  } catch {
+    return null;
+  }
+}
+
+function parseJpeg(buf: Uint8Array): PdfImage | null {
+  try {
     let i = 2;
     while (i + 9 < buf.length) {
       if (buf[i] !== 0xff) {

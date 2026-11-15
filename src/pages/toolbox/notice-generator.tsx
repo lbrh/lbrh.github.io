@@ -2,15 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
 import { flagToSvg } from "@/lib/raceFlags";
 import { NOTICE_TYPES, findNoticeType, findVariant } from "@/lib/noticeTypes";
-import { downloadPdf, loadJpeg, type PdfImage } from "@/lib/pdfWriter";
+import { downloadPdf, rasterToJpeg, type PdfImage } from "@/lib/pdfWriter";
 import {
-  CREST_ID,
-  CREST_URL,
+  EXTRA_ID,
+  LOGO_ID,
+  LOGO_OPTIONS,
   PAGE_H,
   PAGE_W,
   appliesTo,
   buildNoticePdfPages,
   filenameFor,
+  logoSrc,
   longDate,
   nowTime,
   signoffStamp,
@@ -33,6 +35,9 @@ function blankForm(): NoticeForm {
     extra: { hours: "1" },
     body: NOTICE_TYPES[0].variants[0].defaultBody({ hours: "1" }),
     rationale: "",
+    logoId: "rycv",
+    logoData: "",
+    imageData: "",
     officerName: "",
     officerRole: "Race Officer",
   };
@@ -59,6 +64,7 @@ export default function NoticeGenerator() {
           typeof saved.officerRole === "string"
             ? saved.officerRole
             : f.officerRole,
+        logoId: typeof saved.logoId === "string" ? saved.logoId : f.logoId,
       }));
     } catch {
       /* storage unavailable or corrupt; start blank */
@@ -73,12 +79,13 @@ export default function NoticeGenerator() {
         JSON.stringify({
           officerName: form.officerName,
           officerRole: form.officerRole,
+          logoId: form.logoId === "custom" ? "rycv" : form.logoId,
         }),
       );
     } catch {
       /* ignore quota / private-mode errors */
     }
-  }, [restored, form.officerName, form.officerRole]);
+  }, [restored, form.officerName, form.officerRole, form.logoId]);
 
   const type = useMemo(() => findNoticeType(form.typeId), [form.typeId]);
   const variant = useMemo(
@@ -126,15 +133,28 @@ export default function NoticeGenerator() {
 
   const exportPdf = async (f: NoticeForm) => {
     const t = findNoticeType(f.typeId);
-    const crest = await loadJpeg(CREST_URL);
-    const images: Record<string, PdfImage> = crest ? { [CREST_ID]: crest } : {};
+    const src = logoSrc(f);
+    const [logo, extra] = await Promise.all([
+      src ? rasterToJpeg(src, 800) : null,
+      f.imageData ? rasterToJpeg(f.imageData) : null,
+    ]);
+    const images: Record<string, PdfImage> = {};
+    if (logo) images[LOGO_ID] = logo;
+    if (extra) images[EXTRA_ID] = extra;
     downloadPdf(
-      buildNoticePdfPages(f, t, findVariant(t, f.variantId), !!crest),
+      buildNoticePdfPages(f, t, findVariant(t, f.variantId), { logo, extra }),
       PAGE_W,
       PAGE_H,
       filenameFor(f),
       images,
     );
+  };
+
+  const readImage = (file: File | undefined, key: "logoData" | "imageData") => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => set(key, String(reader.result));
+    reader.readAsDataURL(file);
   };
 
   const download = async () => {
@@ -247,6 +267,35 @@ export default function NoticeGenerator() {
           </label>
         </div>
 
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className="tb-eyebrow">Corner logo</span>
+            <select
+              value={form.logoId}
+              onChange={(e) => set("logoId", e.target.value)}
+              className="tb-input mt-1 w-full px-3 py-2 text-sm"
+            >
+              {LOGO_OPTIONS.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {form.logoId === "custom" && (
+            <label className="block text-sm">
+              <span className="tb-eyebrow">Logo file</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => readImage(e.target.files?.[0], "logoData")}
+                className="tb-input mt-1 w-full px-3 py-2 text-sm"
+              />
+            </label>
+          )}
+        </div>
+
         <div className="tb-rule my-5" />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -353,6 +402,29 @@ export default function NoticeGenerator() {
           />
         </label>
 
+        <div className="mt-4 text-sm">
+          <span className="tb-eyebrow">
+            Extra image (optional, shown between the body and the rationale)
+          </span>
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => readImage(e.target.files?.[0], "imageData")}
+              className="tb-input px-3 py-2 text-sm"
+            />
+            {form.imageData && (
+              <button
+                type="button"
+                onClick={() => set("imageData", "")}
+                className="tb-btn-ghost px-3 py-2 text-xs"
+              >
+                Remove image
+              </button>
+            )}
+          </div>
+        </div>
+
         <label className="mt-4 block text-sm">
           <span className="tb-eyebrow">Rationale (optional)</span>
           <textarea
@@ -406,12 +478,14 @@ export default function NoticeGenerator() {
         style={{ aspectRatio: "495 / 722" }}
       >
         <div className="relative flex min-h-full flex-col">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={CREST_URL}
-            alt="Royal Yacht Club of Victoria crest"
-            className="absolute left-0 top-0 h-[84px] w-[60px]"
-          />
+          {logoSrc(form) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoSrc(form) ?? undefined}
+              alt="Logo"
+              className="absolute left-0 top-0 h-[84px] w-[84px] object-contain object-left-top"
+            />
+          )}
           <div className="absolute right-0 top-0 flex flex-col items-end gap-1">
             {flagIds.map((id) => (
               <div
@@ -436,6 +510,14 @@ export default function NoticeGenerator() {
             )}
             {appliesTo(form) && <p className="mb-3">{appliesTo(form)}</p>}
             <p className="whitespace-pre-wrap">{form.body}</p>
+            {form.imageData && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={form.imageData}
+                alt=""
+                className="my-3 max-h-[220px] max-w-full object-contain"
+              />
+            )}
             {form.rationale.trim() && (
               <>
                 <p className="mt-3 font-bold">Rationale:</p>
