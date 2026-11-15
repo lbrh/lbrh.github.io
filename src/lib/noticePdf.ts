@@ -1,25 +1,30 @@
 /**
- * Builds the vector PDF page(s) for a Notice to Competitors. Kept out of
- * the component so sample notices can be generated and checked from the
- * command line (see noticePdf.sampleScript.ts) without a browser.
+ * Builds the vector PDF page(s) for a Notice to Competitors in the RYCV
+ * house format: bordered page, club crest top-left, race signal flag(s)
+ * top-right, centred title block, left-aligned body, a bold "Rationale:"
+ * section and a name / role / date-time signature. Kept out of the
+ * component so notices can be generated and checked without a browser.
  */
-import {
-  FLAG_BY_ID,
-  flagDescription,
-  flagOutline,
-  type FlagId,
-} from "./raceFlags";
+import { FLAG_BY_ID, flagOutline, type FlagId } from "./raceFlags";
 import type { NoticeType, NoticeVariant } from "./noticeTypes";
 import { wrapText, type PdfPrim } from "./pdfWriter";
 
 export const PAGE_W = 595;
 export const PAGE_H = 842;
-export const MARGIN = 50;
-export const BODY_W = PAGE_W - MARGIN * 2;
+export const CREST_URL = "/rycv-crest.jpg";
+export const CREST_ID = "Crest";
+
+// The page border, and the content area inside it.
+export const BORDER = { x: 50, y: 60, w: 495, h: 722 };
+const PAD = 28;
+export const LEFT = BORDER.x + PAD;
+export const BODY_W = BORDER.w - PAD * 2;
+const BOTTOM = BORDER.y + BORDER.h;
+const BODY_SIZE = 11;
+const LINE_H = 15;
 
 export interface NoticeForm {
   eventName: string;
-  club: string;
   noticeNumber: string;
   postedDate: string;
   postedTime: string;
@@ -28,12 +33,14 @@ export interface NoticeForm {
   variantId: string;
   extra: Record<string, string>;
   body: string;
+  rationale: string;
   officerName: string;
   officerRole: string;
 }
 
 export function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function nowTime() {
@@ -41,30 +48,62 @@ export function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** "2026-07-29" -> "29 July 2026". Falls back to the raw text if it isn't ISO. */
+export function longDate(iso: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+/** "17:00 9 October 2026", or just the date when no time is set. */
+export function signoffStamp(form: NoticeForm) {
+  return [form.postedTime, longDate(form.postedDate)].filter(Boolean).join(" ");
+}
+
+/** Heading above the body; a plain general notice needs none. */
+export function typeHeading(type: NoticeType) {
+  return type.id === "general-notice" ? "" : type.title;
+}
+
+/** "Applies to" line, only when the notice isn't for everyone. */
+export function appliesTo(form: NoticeForm) {
+  const c = form.classesAffected.trim();
+  return c && !/^all$/i.test(c) ? `Applies to: ${c}` : "";
+}
+
 export function safeFilePart(s: string) {
   return s.trim().replace(/[\\/:*?"<>|]+/g, "-");
 }
 
 export function filenameFor(form: NoticeForm) {
-  return `NTC-${safeFilePart(form.noticeNumber) || "0"}-${safeFilePart(form.eventName) || "notice"}-${form.postedDate}.pdf`;
+  return `NTC#${safeFilePart(form.noticeNumber) || "0"} - ${form.postedDate} - ${safeFilePart(form.eventName) || "notice"}.pdf`;
 }
 
-// ponytail: one straightforward top-to-bottom layout, no generic page
-// engine — the live HTML preview is plain CSS and intentionally doesn't
-// share code with this, since the two have little in common beyond content.
-function flagPrims(
-  ids: FlagId[],
-  centerX: number,
-  topY: number,
-): { prims: PdfPrim[]; bottomY: number } {
+// Flags stack down the top-right corner, small, like the Word template.
+function flagPrims(ids: FlagId[], rightX: number, topY: number): PdfPrim[] {
   const prims: PdfPrim[] = [];
+  const flagH = 40;
+  const gap = 4;
   let y = topY;
-  const flagH = 70;
-  const gap = 6;
   for (const id of ids) {
     const def = FLAG_BY_ID[id];
     const w = (flagH * def.width) / 100;
-    const x = centerX - w / 2;
+    const x = rightX - w;
     const sx = w / def.width;
     const sy = flagH / 100;
     for (const layer of def.layers) {
@@ -101,183 +140,161 @@ function flagPrims(
         ([px, py]) => [x + px * sx, y + py * sy] as [number, number],
       ),
       stroke: "#00000033",
-      sw: 1,
+      sw: 0.75,
     });
     y += flagH + gap;
   }
-  return { prims, bottomY: y };
+  return prims;
+}
+
+function frame(): PdfPrim {
+  return {
+    k: "rect",
+    x: BORDER.x,
+    y: BORDER.y,
+    w: BORDER.w,
+    h: BORDER.h,
+    stroke: "#000000",
+    sw: 1,
+  };
 }
 
 export function buildNoticePdfPages(
   form: NoticeForm,
   type: NoticeType,
   variant: NoticeVariant,
+  hasCrest = true,
 ): PdfPrim[][] {
   const flagIds = variant.flags(form.extra);
   const pages: PdfPrim[][] = [];
-  let page: PdfPrim[] = [];
-  let y = MARGIN;
+  let page: PdfPrim[] = [frame()];
+  const center = BORDER.x + BORDER.w / 2;
+  const ink = "#1a1a1a";
 
-  const text = (
-    t: string,
-    size: number,
-    opts: Partial<Extract<PdfPrim, { k: "text" }>> = {},
-  ) => {
+  // Header block: crest left, title centred, flags right.
+  if (hasCrest) {
+    page.push({
+      k: "image",
+      id: CREST_ID,
+      x: LEFT - 8,
+      y: BORDER.y + 14,
+      w: 60,
+      h: 84,
+    });
+  }
+  page.push(
+    ...flagPrims(flagIds, BORDER.x + BORDER.w - PAD + 8, BORDER.y + 16),
+  );
+  let y = BORDER.y + 50;
+  page.push({
+    k: "text",
+    x: center,
+    y,
+    text: "Notice to Competitors",
+    size: 24,
+    fill: ink,
+    anchor: "middle",
+    bold: true,
+  });
+  y += 26;
+  if (form.eventName.trim()) {
     page.push({
       k: "text",
-      x: MARGIN,
+      x: center,
       y,
-      text: t,
-      size,
-      fill: "#1a1a1a",
-      ...opts,
+      text: form.eventName.trim(),
+      size: 15,
+      fill: ink,
+      anchor: "middle",
+      bold: true,
     });
+    y += 22;
+  }
+  page.push({
+    k: "text",
+    x: center,
+    y,
+    text: longDate(form.postedDate),
+    size: 15,
+    fill: ink,
+    anchor: "middle",
+    bold: true,
+  });
+  y = Math.max(y + 50, BORDER.y + 150);
+
+  const newPage = () => {
+    pages.push(page);
+    page = [frame()];
+    y = BORDER.y + 36;
+    page.push({
+      k: "text",
+      x: LEFT,
+      y,
+      text: "Notice to Competitors (continued)",
+      size: 10,
+      fill: "#666666",
+      italic: true,
+    });
+    y += 28;
   };
 
-  text("NOTICE TO COMPETITORS", 18, {
-    x: PAGE_W / 2,
-    anchor: "middle",
-    bold: true,
-  });
-  y += 24;
-  page.push({
-    k: "line",
-    x1: MARGIN,
-    y1: y,
-    x2: PAGE_W - MARGIN,
-    y2: y,
-    stroke: "#1a1a1a",
-    w: 1,
-  });
-  y += 20;
-
-  text(form.eventName || "[event name]", 13, { bold: true });
-  page.push({
-    k: "text",
-    x: PAGE_W - MARGIN,
-    y,
-    text: `Notice No. ${form.noticeNumber || "-"}`,
-    size: 11,
-    fill: "#1a1a1a",
-    anchor: "end",
-  });
-  y += 16;
-  text(form.club || "[club]", 11);
-  page.push({
-    k: "text",
-    x: PAGE_W - MARGIN,
-    y,
-    text: `Posted: ${form.postedDate} ${form.postedTime}`,
-    size: 10,
-    fill: "#444444",
-    anchor: "end",
-  });
-  y += 16;
-  text(`Race / class affected: ${form.classesAffected || "All"}`, 10, {
-    fill: "#444444",
-  });
-  y += 20;
-  page.push({
-    k: "line",
-    x1: MARGIN,
-    y1: y,
-    x2: PAGE_W - MARGIN,
-    y2: y,
-    stroke: "#cccccc",
-    w: 1,
-  });
-  y += 24;
-
-  const flags = flagPrims(flagIds, PAGE_W / 2, y);
-  page.push(...flags.prims);
-  y = flags.bottomY + 18;
-
-  page.push({
-    k: "text",
-    x: PAGE_W / 2,
-    y,
-    text: flagIds.map((id) => FLAG_BY_ID[id].name).join(" over "),
-    size: 15,
-    fill: "#1a1a1a",
-    anchor: "middle",
-    bold: true,
-  });
-  y += 16;
-  page.push({
-    k: "text",
-    x: PAGE_W / 2,
-    y,
-    text: flagDescription(flagIds),
-    size: 9,
-    fill: "#666666",
-    anchor: "middle",
-  });
-  y += 28;
-
-  page.push({
-    k: "text",
-    x: MARGIN,
-    y,
-    text: type.title.toUpperCase(),
-    size: 12,
-    fill: "#1a1a1a",
-    bold: true,
-  });
-  y += 18;
-
-  const bodyLines = wrapText(form.body, BODY_W, 11);
-  for (const line of bodyLines) {
-    if (y > PAGE_H - 110) {
-      pages.push(page);
-      page = [];
-      y = MARGIN;
-      page.push({
-        k: "text",
-        x: MARGIN,
-        y,
-        text: `${type.title} (continued)`,
-        size: 10,
-        fill: "#666666",
-      });
-      y += 20;
+  const block = (text: string, bold = false) => {
+    for (const line of wrapText(text, BODY_W, BODY_SIZE, bold)) {
+      if (y > BOTTOM - 40) newPage();
+      if (line)
+        page.push({
+          k: "text",
+          x: LEFT,
+          y,
+          text: line,
+          size: BODY_SIZE,
+          fill: ink,
+          bold,
+        });
+      y += LINE_H;
     }
-    page.push({
-      k: "text",
-      x: MARGIN,
-      y,
-      text: line,
-      size: 11,
-      fill: "#1a1a1a",
-    });
-    y += 15;
+    y += 10;
+  };
+
+  const heading = typeHeading(type);
+  if (heading) block(heading, true);
+  const applies = appliesTo(form);
+  if (applies) block(applies);
+  if (form.body.trim()) block(form.body);
+  if (form.rationale.trim()) {
+    block("Rationale:", true);
+    block(form.rationale);
   }
 
-  // Footer, pinned near the bottom of whichever page the body ended on.
-  const footerY = Math.max(y + 30, PAGE_H - 95);
+  // Signature block: pinned toward the bottom of the last page.
+  const sigY = Math.max(y + 24, BOTTOM - 70);
+  if (sigY + 2 * LINE_H > BOTTOM - 12) newPage();
+  const sy = Math.max(y + 24, BOTTOM - 70);
   page.push({
-    k: "line",
-    x1: MARGIN,
-    y1: footerY,
-    x2: PAGE_W - MARGIN,
-    y2: footerY,
-    stroke: "#cccccc",
-    w: 1,
+    k: "text",
+    x: LEFT,
+    y: sy,
+    text: form.officerName || "[race officer]",
+    size: BODY_SIZE,
+    fill: ink,
   });
   page.push({
     k: "text",
-    x: MARGIN,
-    y: footerY + 18,
-    text: `Issued by ${form.officerName || "[race officer]"}, ${form.officerRole || "Race Officer"}`,
-    size: 10,
-    fill: "#1a1a1a",
+    x: LEFT,
+    y: sy + LINE_H,
+    text: form.officerRole || "Race Officer",
+    size: BODY_SIZE,
+    fill: ink,
+    italic: true,
   });
   page.push({
     k: "text",
-    x: MARGIN,
-    y: footerY + 36,
-    text: "Reference only. The race committee is responsible for the content of this notice and for posting it in accordance with the sailing instructions.",
-    size: 8,
-    fill: "#888888",
+    x: LEFT,
+    y: sy + 2 * LINE_H,
+    text: signoffStamp(form),
+    size: BODY_SIZE,
+    fill: ink,
+    italic: true,
   });
 
   pages.push(page);

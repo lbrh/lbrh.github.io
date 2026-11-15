@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import ToolboxShell from "@/components/toolbox/ToolboxShell";
-import { FLAG_BY_ID, flagDescription, flagToSvg } from "@/lib/raceFlags";
+import { flagToSvg } from "@/lib/raceFlags";
 import { NOTICE_TYPES, findNoticeType, findVariant } from "@/lib/noticeTypes";
-import { downloadPdf } from "@/lib/pdfWriter";
+import { downloadPdf, loadJpeg, type PdfImage } from "@/lib/pdfWriter";
 import {
+  CREST_ID,
+  CREST_URL,
   PAGE_H,
   PAGE_W,
+  appliesTo,
   buildNoticePdfPages,
   filenameFor,
+  longDate,
   nowTime,
+  signoffStamp,
   today,
+  typeHeading,
   type NoticeForm,
 } from "@/lib/noticePdf";
 
@@ -18,7 +24,6 @@ const STORAGE_KEY = "toolbox:notice-generator:org";
 function blankForm(): NoticeForm {
   return {
     eventName: "",
-    club: "",
     noticeNumber: "1",
     postedDate: today(),
     postedTime: nowTime(),
@@ -27,6 +32,7 @@ function blankForm(): NoticeForm {
     variantId: NOTICE_TYPES[0].variants[0].id,
     extra: { hours: "1" },
     body: NOTICE_TYPES[0].variants[0].defaultBody({ hours: "1" }),
+    rationale: "",
     officerName: "",
     officerRole: "Race Officer",
   };
@@ -45,7 +51,6 @@ export default function NoticeGenerator() {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
       setForm((f) => ({
         ...f,
-        club: typeof saved.club === "string" ? saved.club : f.club,
         officerName:
           typeof saved.officerName === "string"
             ? saved.officerName
@@ -66,7 +71,6 @@ export default function NoticeGenerator() {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          club: form.club,
           officerName: form.officerName,
           officerRole: form.officerRole,
         }),
@@ -74,7 +78,7 @@ export default function NoticeGenerator() {
     } catch {
       /* ignore quota / private-mode errors */
     }
-  }, [restored, form.club, form.officerName, form.officerRole]);
+  }, [restored, form.officerName, form.officerRole]);
 
   const type = useMemo(() => findNoticeType(form.typeId), [form.typeId]);
   const variant = useMemo(
@@ -120,13 +124,21 @@ export default function NoticeGenerator() {
     setForm((f) => ({ ...f, body: variant.defaultBody(f.extra) }));
   };
 
-  const pages = useMemo(
-    () => buildNoticePdfPages(form, type, variant),
-    [form, type, variant],
-  );
+  const exportPdf = async (f: NoticeForm) => {
+    const t = findNoticeType(f.typeId);
+    const crest = await loadJpeg(CREST_URL);
+    const images: Record<string, PdfImage> = crest ? { [CREST_ID]: crest } : {};
+    downloadPdf(
+      buildNoticePdfPages(f, t, findVariant(t, f.variantId), !!crest),
+      PAGE_W,
+      PAGE_H,
+      filenameFor(f),
+      images,
+    );
+  };
 
-  const download = () => {
-    downloadPdf(pages, PAGE_W, PAGE_H, filenameFor(form));
+  const download = async () => {
+    await exportPdf(form);
     setHistory((h) => [...h, { id: Date.now(), form }]);
   };
 
@@ -167,16 +179,7 @@ export default function NoticeGenerator() {
             />
           </label>
           <label className="block text-sm">
-            <span className="tb-eyebrow">Club</span>
-            <input
-              type="text"
-              value={form.club}
-              onChange={(e) => set("club", e.target.value)}
-              className="tb-input mt-1 w-full px-3 py-2 text-sm"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="tb-eyebrow">Notice number</span>
+            <span className="tb-eyebrow">Notice number (filename)</span>
             <input
               type="text"
               value={form.noticeNumber}
@@ -350,6 +353,17 @@ export default function NoticeGenerator() {
           />
         </label>
 
+        <label className="mt-4 block text-sm">
+          <span className="tb-eyebrow">Rationale (optional)</span>
+          <textarea
+            value={form.rationale}
+            onChange={(e) => set("rationale", e.target.value)}
+            rows={3}
+            placeholder="Why the change was made, or the forecast it is based on"
+            className="tb-input mt-1 w-full px-3 py-2 text-sm"
+          />
+        </label>
+
         <div className="mt-5 flex flex-wrap gap-3">
           <button onClick={download} className="tb-btn px-4 py-2 text-sm">
             Download PDF
@@ -375,21 +389,7 @@ export default function NoticeGenerator() {
                   {filenameFor(h.form)} — {findNoticeType(h.form.typeId).title}
                 </span>
                 <button
-                  onClick={() =>
-                    downloadPdf(
-                      buildNoticePdfPages(
-                        h.form,
-                        findNoticeType(h.form.typeId),
-                        findVariant(
-                          findNoticeType(h.form.typeId),
-                          h.form.variantId,
-                        ),
-                      ),
-                      PAGE_W,
-                      PAGE_H,
-                      filenameFor(h.form),
-                    )
-                  }
+                  onClick={() => exportPdf(h.form)}
                   className="tb-btn-ghost px-3 py-1 text-xs"
                 >
                   Download again
@@ -400,60 +400,55 @@ export default function NoticeGenerator() {
         </div>
       )}
 
-      <div id="notice-preview" className="tb-card mt-8 bg-white p-10">
-        <div className="mx-auto max-w-[520px]">
-          <h2 className="text-center text-[20px] font-bold tracking-wide">
-            NOTICE TO COMPETITORS
-          </h2>
-          <div className="tb-rule my-4" />
-          <div className="flex items-baseline justify-between text-[13px]">
-            <strong>{form.eventName || "[event name]"}</strong>
-            <span>Notice No. {form.noticeNumber || "-"}</span>
-          </div>
-          <div className="mt-1 flex items-baseline justify-between text-[11px] text-[var(--tb-text-muted)]">
-            <span>{form.club || "[club]"}</span>
-            <span>
-              Posted: {form.postedDate} {form.postedTime}
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-[var(--tb-text-muted)]">
-            Race / class affected: {form.classesAffected || "All"}
-          </p>
-
-          <div className="tb-rule my-5" />
-
-          <div className="flex flex-col items-center gap-1.5">
+      <div
+        id="notice-preview"
+        className="mx-auto mt-8 max-w-[600px] border border-black bg-white p-8 text-[#1a1a1a]"
+        style={{ aspectRatio: "495 / 722" }}
+      >
+        <div className="relative flex min-h-full flex-col">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={CREST_URL}
+            alt="Royal Yacht Club of Victoria crest"
+            className="absolute left-0 top-0 h-[84px] w-[60px]"
+          />
+          <div className="absolute right-0 top-0 flex flex-col items-end gap-1">
             {flagIds.map((id) => (
               <div
                 key={id}
-                dangerouslySetInnerHTML={{ __html: flagToSvg(id, 80) }}
+                dangerouslySetInnerHTML={{ __html: flagToSvg(id, 40) }}
               />
             ))}
-            <p className="mt-2 text-[16px] font-semibold">
-              {flagIds.map((id) => FLAG_BY_ID[id].name).join(" over ")}
-            </p>
-            <p className="text-center text-[11px] text-[var(--tb-text-muted)]">
-              {flagDescription(flagIds)}
-            </p>
+          </div>
+          <div className="pt-4 text-center">
+            <h2 className="text-[26px] font-bold leading-tight">
+              Notice to Competitors
+            </h2>
+            {form.eventName.trim() && (
+              <p className="text-[16px] font-bold">{form.eventName.trim()}</p>
+            )}
+            <p className="text-[16px] font-bold">{longDate(form.postedDate)}</p>
           </div>
 
-          <h3 className="mt-6 text-[13px] font-bold uppercase tracking-wide">
-            {type.title}
-          </h3>
-          <p className="mt-2 whitespace-pre-wrap text-[12.5px] leading-relaxed">
-            {form.body}
-          </p>
+          <div className="mt-24 flex-1 px-1 text-[13px] leading-relaxed">
+            {typeHeading(type) && (
+              <p className="mb-3 font-bold">{typeHeading(type)}</p>
+            )}
+            {appliesTo(form) && <p className="mb-3">{appliesTo(form)}</p>}
+            <p className="whitespace-pre-wrap">{form.body}</p>
+            {form.rationale.trim() && (
+              <>
+                <p className="mt-3 font-bold">Rationale:</p>
+                <p className="whitespace-pre-wrap">{form.rationale}</p>
+              </>
+            )}
+          </div>
 
-          <div className="tb-rule mt-10 mb-3" />
-          <p className="text-[11px]">
-            Issued by {form.officerName || "[race officer]"},{" "}
-            {form.officerRole || "Race Officer"}
-          </p>
-          <p className="mt-4 text-[9.5px] text-[var(--tb-text-faint)]">
-            Reference only. The race committee is responsible for the content of
-            this notice and for posting it in accordance with the sailing
-            instructions.
-          </p>
+          <div className="mt-10 px-1 text-[13px]">
+            <p>{form.officerName || "[race officer]"}</p>
+            <p className="italic">{form.officerRole || "Race Officer"}</p>
+            <p className="italic">{signoffStamp(form)}</p>
+          </div>
         </div>
       </div>
 
@@ -472,7 +467,7 @@ export default function NoticeGenerator() {
             padding: 0 !important;
           }
           #notice-preview {
-            border: none !important;
+            border: 1px solid #000 !important;
             margin: 0 !important;
           }
         }

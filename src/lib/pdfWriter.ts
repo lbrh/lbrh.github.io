@@ -54,7 +54,49 @@ export type PdfPrim =
       fill: string;
       anchor?: "start" | "middle" | "end";
       bold?: boolean;
-    };
+      italic?: boolean;
+    }
+  | { k: "image"; id: string; x: number; y: number; w: number; h: number };
+
+/** A baseline JPEG embedded as-is (DCTDecode); bytes are a latin1 binary string. */
+export interface PdfImage {
+  bytes: string;
+  width: number;
+  height: number;
+  components: number;
+}
+
+/** Fetch a JPEG and read its size/components from the SOF marker. */
+export async function loadJpeg(url: string): Promise<PdfImage | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) {
+        i++;
+        continue;
+      }
+      const m = buf[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        let bytes = "";
+        for (let j = 0; j < buf.length; j += 8192)
+          bytes += String.fromCharCode(...buf.subarray(j, j + 8192));
+        return {
+          bytes,
+          height: (buf[i + 5] << 8) | buf[i + 6],
+          width: (buf[i + 7] << 8) | buf[i + 8],
+          components: buf[i + 9],
+        };
+      }
+      i += 2 + ((buf[i + 2] << 8) | buf[i + 3]);
+    }
+  } catch {
+    /* fall through: the PDF is built without the image */
+  }
+  return null;
+}
 
 function pdfColor(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
@@ -160,10 +202,19 @@ function buildContentStream(prims: PdfPrim[], w: number, h: number): string {
               : p.x;
         out.push(`${r} ${g} ${b} rg`);
         out.push("BT");
-        out.push(`/${p.bold ? "F2" : "F1"} ${f(p.size)} Tf`);
+        out.push(
+          `/${p.bold ? "F2" : p.italic ? "F3" : "F1"} ${f(p.size)} Tf`,
+        );
         out.push(`1 0 0 -1 ${f(x)} ${f(p.y)} Tm`);
         out.push(`(${pdfEscape(p.text)}) Tj`);
         out.push("ET");
+        break;
+      }
+      case "image": {
+        // Counter the page's Y flip so the picture isn't drawn upside down.
+        out.push(
+          `q ${f(p.w)} 0 0 ${f(-p.h)} ${f(p.x)} ${f(p.y + p.h)} cm /${p.id} Do Q`,
+        );
         break;
       }
     }
@@ -204,10 +255,15 @@ export function buildPdfBytes(
   pages: PdfPrim[][],
   width: number,
   height: number,
+  images: Record<string, PdfImage> = {},
 ): string {
   // Object numbers are fixed up front: catalog=1, pages=2, then a Page +
-  // Contents pair per page, then the two fonts.
+  // Contents pair per page, then the three fonts, then any images.
   const objects: string[] = [];
+  const imageIds = Object.keys(images);
+  const imageRefs = imageIds
+    .map((id, i) => `/${id} ${fontsObjNumFor(pages.length) + 3 + i} 0 R`)
+    .join(" ");
   objects.push("<</Type/Catalog/Pages 2 0 R>>");
   objects.push(
     `<</Type/Pages/Kids[${pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ")}]/Count ${pages.length}>>`,
@@ -216,7 +272,7 @@ export function buildPdfBytes(
   for (let i = 0; i < pages.length; i++) {
     const content = buildContentStream(pages[i], width, height);
     objects.push(
-      `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${width.toFixed(2)} ${height.toFixed(2)}]/Resources<</Font<</F1 ${fontsObjNum} 0 R/F2 ${fontsObjNum + 1} 0 R>>>>/Contents ${4 + i * 2} 0 R>>`,
+      `<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${width.toFixed(2)} ${height.toFixed(2)}]/Resources<</Font<</F1 ${fontsObjNum} 0 R/F2 ${fontsObjNum + 1} 0 R/F3 ${fontsObjNum + 2} 0 R>>/XObject<<${imageRefs}>>>>/Contents ${4 + i * 2} 0 R>>`,
     );
     objects.push(
       `<</Length ${content.length}>>\nstream\n${content}\nendstream`,
@@ -228,6 +284,15 @@ export function buildPdfBytes(
   objects.push(
     "<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>",
   );
+  objects.push(
+    "<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Oblique/Encoding/WinAnsiEncoding>>",
+  );
+  for (const id of imageIds) {
+    const im = images[id];
+    objects.push(
+      `<</Type/XObject/Subtype/Image/Width ${im.width}/Height ${im.height}/ColorSpace/${im.components === 1 ? "DeviceGray" : "DeviceRGB"}/BitsPerComponent 8/Filter/DCTDecode/Length ${im.bytes.length}>>\nstream\n${im.bytes}\nendstream`,
+    );
+  }
 
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
@@ -243,14 +308,22 @@ export function buildPdfBytes(
   return pdf;
 }
 
+function fontsObjNumFor(pageCount: number) {
+  return 3 + pageCount * 2;
+}
+
 export function downloadPdf(
   pages: PdfPrim[][],
   width: number,
   height: number,
   filename: string,
+  images: Record<string, PdfImage> = {},
 ) {
-  const pdf = buildPdfBytes(pages, width, height);
-  const blob = new Blob([pdf], { type: "application/pdf" });
+  const pdf = buildPdfBytes(pages, width, height, images);
+  // Strings hold one byte per char (latin1), so embedded JPEG data survives.
+  const bytes = new Uint8Array(pdf.length);
+  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 255;
+  const blob = new Blob([bytes], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
