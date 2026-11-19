@@ -22,7 +22,16 @@ export function prepFlagInfo(flag: PrepFlag) {
   return PREP_FLAGS.find((f) => f.value === flag) ?? PREP_FLAGS[0];
 }
 
-export type SignalStage = "warning" | "preparatory" | "one-minute" | "starting";
+export type SignalStage =
+  | "warning"
+  | "preparatory"
+  | "one-minute"
+  | "starting"
+  | "ball-up"
+  | "ball-down";
+
+/** Last pursuit start, in minutes after the class flag is removed. */
+export const PURSUIT_LAST_MINUTE = 32;
 
 export const STAGE_INFO: Record<SignalStage, { name: string; sound: string }> =
   {
@@ -30,6 +39,8 @@ export const STAGE_INFO: Record<SignalStage, { name: string; sound: string }> =
     preparatory: { name: "Preparatory", sound: "1 sound" },
     "one-minute": { name: "One-minute", sound: "1 long sound" },
     starting: { name: "Starting", sound: "1 sound" },
+    "ball-up": { name: "Black ball up", sound: "No sound" },
+    "ball-down": { name: "Black ball down / start", sound: "1 sound" },
   };
 
 export interface ClassSignal {
@@ -52,6 +63,12 @@ export interface StartSequenceOptions {
   /** Minutes between each class's starting signal. Default equals warningMinutes. */
   gapMinutes?: number;
   prepFlag?: PrepFlag;
+  /**
+   * Pursuit start: the first class starts at 0 (class flag removed). A black
+   * ball goes up 1 minute before each group start and comes down with the
+   * sound signal at +2, +4 ... +32 minutes.
+   */
+  pursuit?: boolean;
 }
 
 export interface StartSequenceResult {
@@ -120,6 +137,25 @@ export function buildStartSequence(
     });
     signals.push({ classIndex, className, stage: "starting", time: start });
   });
+
+  if (opts.pursuit) {
+    const base = opts.startTime.getTime();
+    for (let m = 2; m <= PURSUIT_LAST_MINUTE; m += 2) {
+      const name = `+${m}`;
+      signals.push({
+        classIndex: 0,
+        className: name,
+        stage: "ball-up",
+        time: new Date(base + (m - 1) * MIN_MS),
+      });
+      signals.push({
+        classIndex: 0,
+        className: name,
+        stage: "ball-down",
+        time: new Date(base + m * MIN_MS),
+      });
+    }
+  }
 
   signals.sort(
     (a, b) =>

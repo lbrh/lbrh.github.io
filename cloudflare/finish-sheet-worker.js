@@ -57,6 +57,43 @@ Important: assume the boats are listed in chronological order, so the finish tim
 Return ONLY a raw JSON array, no markdown code fences, no commentary before or after. Example shape:
 [{"place": 1, "sailNum": "R281", "hr": "16", "min": "09", "sec": "21", "note": "", "hourGuessed": false}]`;
 
+// Second mode: a timestamped transcript of a race officer calling boats over
+// the finish line (Voice Finish Logger, src/pages/toolbox/finish-voice.tsx).
+const MAX_TRANSCRIPT_CHARS = 250_000;
+const MAX_SAILS = 600;
+
+const VOICE_PROMPT = `You are processing a speech-to-text transcript of a race officer on the finish boat calling yachts across the finish line. Every word is prefixed with its start time in seconds from the start of the recording, like [12.4]R815, [13.1]now.
+
+How the officer works: they "load" a boat by calling its sail number (a letter or letters followed by digits, e.g. R815, S47, H1020), and call "now" at the instant it finishes. Rules:
+- Boats are queued in the order they are first called. Each "now" finishes the EARLIEST boat still waiting. So "S1020, R7158, now, now" means S1020 finished at the first now and R7158 at the second now.
+- The officer often repeats a sail number to be sure it was heard ("S47 S47, now"). A repeat of the same boat while it is still waiting is ONE boat, not two.
+- A boat's finish time is the timestamp of the "now" that finishes it, in seconds from the start of the recording, to one decimal place.
+- Speech-to-text mistakes are common: sail numbers may be spelled out ("R eight one five", "Romeo 815", "R-8-1-5") and "now" may appear as "no", "know", "now." or similar. Use context: a short word right after one or more sail calls, where a finish call is expected, is a "now". Ignore all other chatter (conversation, radio calls, counting, etc.).
+- The officer sometimes withdraws a boat they loaded too early. "Scratch that", "ignore that", "cancel that", "disregard", "forget that", "not that one" or similar removes the MOST RECENTLY loaded boat that is still waiting from the queue, as if it was never called. It is not a finish and must not appear in the output. Example: "S47, scratch that, S19, now" means only S19 finished. If several boats are waiting and the wording names one ("scratch S47", "ignore S47"), remove that boat instead. If the same boat is then called again later, treat it as a fresh load. Only drop boats that have not yet had a "now"; a withdrawal after a boat's "now" does not undo that finish unless the officer clearly says so about that boat. Whisper may garble these phrases ("scratch it", "scrap that", "ignore it"), so judge by context.
+- If a list of valid sail numbers is supplied, snap each heard sail number to the single closest valid one when it is plausibly a mishearing (e.g. a dropped or swapped digit, "R 815" heard as "R 80 15"). If nothing plausible matches, keep what was heard and set note to "not in boat list".
+- A boat that was loaded but never got a matching "now" is still included, with "t": null and note "no now heard". Extra "now" calls with no boat waiting are ignored.
+- Return boats in the order they finished.
+
+Return ONLY a raw JSON array, no markdown fences, no commentary. Each element: {"sailNum": "R815", "t": 128.4, "note": ""}. Sail numbers have no spaces and are uppercase. Example:
+[{"sailNum": "R815", "t": 128.4, "note": ""}, {"sailNum": "S47", "t": 141.0, "note": ""}]`;
+
+async function callClaude(env, content, maxTokens) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content }],
+    }),
+  });
+  return res;
+}
+
 function corsHeaders(origin) {
   const headers = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -156,6 +193,47 @@ export default {
       payload = await request.json();
     } catch {
       return jsonResponse({ error: 'Request body must be JSON.' }, 400, headers);
+    }
+
+    if (typeof payload?.transcript === 'string') {
+      const transcript = payload.transcript;
+      if (!transcript.trim()) {
+        return jsonResponse({ error: 'Transcript is empty.' }, 400, headers);
+      }
+      if (transcript.length > MAX_TRANSCRIPT_CHARS) {
+        return jsonResponse({ error: 'Transcript is too long. Try a shorter recording.' }, 413, headers);
+      }
+      const sails = Array.isArray(payload.sails)
+        ? payload.sails.filter((s) => typeof s === 'string').slice(0, MAX_SAILS)
+        : [];
+      const text =
+        VOICE_PROMPT +
+        (sails.length ? `\n\nValid sail numbers: ${sails.join(', ')}` : '') +
+        `\n\nTranscript:\n${transcript}`;
+
+      let res;
+      try {
+        res = await callClaude(env, text, 8000);
+      } catch (e) {
+        return jsonResponse({ error: `Could not reach Anthropic: ${e.message}` }, 502, headers);
+      }
+      if (!res.ok) {
+        const detail = await res.text();
+        return jsonResponse({ error: `Anthropic API error (${res.status}): ${detail}` }, 502, headers);
+      }
+      const data = await res.json();
+      const out = (data.content || [])
+        .filter((b) => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim();
+      let events;
+      try {
+        events = extractJsonArray(out);
+      } catch {
+        return jsonResponse({ error: 'Could not parse a JSON array from the model response.', raw: out }, 502, headers);
+      }
+      return jsonResponse({ events }, 200, headers);
     }
 
     const imageBase64 = typeof payload?.imageBase64 === 'string' ? payload.imageBase64 : '';

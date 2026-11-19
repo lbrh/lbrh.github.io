@@ -62,6 +62,10 @@ function stageLabel(stage: SignalStage, className: string): string {
       return "One-minute";
     case "starting":
       return `${className} starting`;
+    case "ball-up":
+      return `Black ball up (${className} group)`;
+    case "ball-down":
+      return `${className} group starting`;
   }
 }
 
@@ -74,6 +78,8 @@ function flagsForRow(row: SequenceRow, prepFlag: PrepFlag): string {
     if (s.stage === "one-minute")
       parts.push(`${prepFlagInfo(prepFlag).label} down`);
     if (s.stage === "starting") parts.push(`${s.className} flag down`);
+    if (s.stage === "ball-up") parts.push("Black ball up");
+    if (s.stage === "ball-down") parts.push("Black ball down");
   }
   return parts.join(", ");
 }
@@ -81,6 +87,7 @@ function flagsForRow(row: SequenceRow, prepFlag: PrepFlag): string {
 function soundForRow(row: SequenceRow): string {
   // One row can carry more than one signal when times coincide; a long
   // sound (the one-minute signal) is the one that needs calling out.
+  if (row.signals.every((s) => s.stage === "ball-up")) return "No sound";
   const hasOneMinute = row.signals.some((s) => s.stage === "one-minute");
   return hasOneMinute ? "1 long sound" : "1 sound";
 }
@@ -110,6 +117,40 @@ function classFlagStatus(
   return "Started — no flags";
 }
 
+/** What happens at a row, worded for the spoken countdown. */
+function spokenAction(row: SequenceRow, prepFlag: PrepFlag): string {
+  const label = prepFlagInfo(prepFlag).label;
+  return row.signals
+    .map((s) => {
+      switch (s.stage) {
+        case "warning":
+          return `${s.className} flag up`;
+        case "preparatory":
+          return `${label} up`;
+        case "one-minute":
+          return `${label} down`;
+        case "starting":
+          return `${s.className} flag down`;
+        case "ball-up":
+          return "Black ball up";
+        case "ball-down":
+          return `Black ball down, ${s.className} start`;
+      }
+    })
+    .join(", ");
+}
+
+function speak(text: string) {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.1;
+    window.speechSynthesis.speak(u);
+  } catch {
+    /* speech unavailable */
+  }
+}
+
 // ponytail: one oscillator beep is plenty for a committee-boat cue; a
 // multi-tone horn sequence would need a sample library for no real benefit.
 function playBeep(ctx: AudioContext, long: boolean) {
@@ -136,6 +177,7 @@ export default function StartSequenceCalculator() {
   const [gapMinutes, setGapMinutes] = useState(5);
   const [gapTouched, setGapTouched] = useState(false);
   const [beepsOn, setBeepsOn] = useState(false);
+  const [pursuit, setPursuit] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
 
   const [restored, setRestored] = useState(false);
@@ -197,15 +239,16 @@ export default function StartSequenceCalculator() {
     try {
       return buildStartSequence({
         startTime: startDate,
-        classNames,
+        classNames: pursuit ? classNames.slice(0, 1) : classNames,
         warningMinutes,
         gapMinutes,
         prepFlag,
+        pursuit,
       });
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) } as const;
     }
-  }, [startDate, classNames, warningMinutes, gapMinutes, prepFlag]);
+  }, [startDate, classNames, warningMinutes, gapMinutes, prepFlag, pursuit]);
 
   const result = sequence && !("error" in sequence) ? sequence : null;
   const sequenceError = sequence && "error" in sequence ? sequence.error : null;
@@ -219,45 +262,86 @@ export default function StartSequenceCalculator() {
   // beeps were switched on, so nothing sounds off for a sequence that
   // already happened before the page was opened or the box was ticked.
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const beepedRef = useRef<Set<number>>(new Set());
+  const beepedRef = useRef<Set<string>>(new Set());
   const beepsEnabledAtRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (beepsOn && beepsEnabledAtRef.current === null) {
-      beepsEnabledAtRef.current = Date.now();
+  // The AudioContext must be created/resumed inside the checkbox click (a
+  // user gesture); created later from an effect, browsers keep it suspended
+  // and the horn never sounds.
+  const liveRef = useRef({ result, prepFlag });
+  liveRef.current = { result, prepFlag };
+
+  const toggleAudio = (on: boolean) => {
+    setBeepsOn(on);
+    if (!on) {
+      beepsEnabledAtRef.current = null;
       try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    beepsEnabledAtRef.current = Date.now();
+    beepedRef.current.clear();
+    try {
+      if (!audioCtxRef.current) {
         const Ctx =
           window.AudioContext ||
           (window as unknown as { webkitAudioContext?: typeof AudioContext })
             .webkitAudioContext;
         if (Ctx) audioCtxRef.current = new Ctx();
-      } catch {
-        /* Web Audio unavailable; beeps silently do nothing */
       }
+      void audioCtxRef.current?.resume();
+    } catch {
+      /* Web Audio unavailable */
     }
-    if (!beepsOn) beepsEnabledAtRef.current = null;
-  }, [beepsOn]);
+    speak("Audio on"); // also unlocks speech for later calls
+  };
 
+  // Horn at each signal, a spoken "<action> in 30 seconds", then a 10..1
+  // countdown. Polled at 250 ms so seconds aren't skipped.
   useEffect(() => {
-    if (!beepsOn || !result || !now || beepsEnabledAtRef.current === null)
-      return;
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    for (const row of result.rows) {
-      const t = row.time.getTime();
-      if (
-        t < beepsEnabledAtRef.current ||
-        t > now.getTime() ||
-        beepedRef.current.has(t)
-      )
-        continue;
-      beepedRef.current.add(t);
-      playBeep(
-        ctx,
-        row.signals.some((s) => s.stage === "one-minute"),
-      );
-    }
-  }, [beepsOn, result, now]);
+    if (!beepsOn) return;
+    const id = setInterval(() => {
+      const { result: res, prepFlag: pf } = liveRef.current;
+      const enabledAt = beepsEnabledAtRef.current;
+      const ctx = audioCtxRef.current;
+      if (!res || enabledAt === null) return;
+      const nowMs = Date.now();
+      for (const row of res.rows) {
+        const t = row.time.getTime();
+        if (t < enabledAt) continue;
+        const remaining = Math.ceil((t - nowMs) / 1000);
+        if (remaining > 30) break; // rows are sorted
+        const once = (k: string) => {
+          const key = `${t}:${k}`;
+          if (beepedRef.current.has(key)) return false;
+          beepedRef.current.add(key);
+          return true;
+        };
+        if (remaining <= 0) {
+          if (nowMs - t < 2000 && once("horn")) {
+            const sound = soundForRow(row);
+            if (sound !== "No sound" && ctx) {
+              void ctx.resume();
+              playBeep(ctx, sound.includes("long"));
+            }
+          }
+        } else if (remaining <= 10) {
+          if (once(`s${remaining}`))
+            speak(
+              remaining === 10
+                ? `${spokenAction(row, pf)} in 10`
+                : String(remaining),
+            );
+        } else if (remaining > 20) {
+          if (once("30")) speak(`${spokenAction(row, pf)} in 30 seconds`);
+        }
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [beepsOn]);
 
   const reschedule = () => {
     const current = now ?? new Date();
@@ -339,7 +423,7 @@ export default function StartSequenceCalculator() {
           </label>
         </div>
 
-        {classCount > 1 && (
+        {classCount > 1 && !pursuit && (
           <div className="mt-4">
             <span className="tb-eyebrow">Gap between starts (minutes)</span>
             <input
@@ -365,7 +449,7 @@ export default function StartSequenceCalculator() {
           </div>
         )}
 
-        {classCount > 1 && (
+        {classCount > 1 && !pursuit && (
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {classNames.map((name, i) => (
               <label key={i} className="block text-sm">
@@ -390,9 +474,18 @@ export default function StartSequenceCalculator() {
             <input
               type="checkbox"
               checked={beepsOn}
-              onChange={(e) => setBeepsOn(e.target.checked)}
+              onChange={(e) => toggleAudio(e.target.checked)}
             />
-            Horn beeps (off by default)
+            Audio: horn + spoken 30 s warning and 10-second countdown (off by
+            default)
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={pursuit}
+              onChange={(e) => setPursuit(e.target.checked)}
+            />
+            Pursuit start (black ball, +2 to +32)
           </label>
           <button
             onClick={reschedule}

@@ -91,6 +91,14 @@ const TOOLS: Tool[] = [
       'Generate a Notice to Competitors with the correct race signal flag shown, ready to post on the board or download as a PDF.',
     tags: ['Print', 'Export'],
   },
+  {
+    n: '11',
+    title: 'Voice Finish Logger',
+    href: '/toolbox/finish-voice',
+    blurb:
+      'Transcribe a recording of boats being called across the finish line, with timestamps, and turn the calls into an editable table and a TopYacht FinishTime import CSV.',
+    tags: ['AI', 'CSV'],
+  },
 ];
 
 function ToolRow({ tool, delay }: { tool: Tool; delay: number }) {
