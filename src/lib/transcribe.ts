@@ -55,25 +55,32 @@ export async function decodeToMono16k(file: File): Promise<{ samples: Float32Arr
 type AsrOutput = { chunks?: { text: string; timestamp: [number, number | null] }[]; text?: string };
 type AsrPipeline = (audio: Float32Array, opts: Record<string, unknown>) => Promise<AsrOutput>;
 
+let cachedAsr: { id: string; pipe: AsrPipeline } | null = null;
+
 export async function transcribeSamples(
   samples: Float32Array,
   modelId: string,
   onProgress: (p: Progress) => void,
 ): Promise<TranscriptWord[]> {
   onProgress({ stage: 'model', message: 'Loading speech model…' });
-  // webpackIgnore: this is a runtime CDN import, not something to bundle.
-  const mod = await import(/* webpackIgnore: true */ TRANSFORMERS_URL);
-  const asr: AsrPipeline = await mod.pipeline('automatic-speech-recognition', modelId, {
-    progress_callback: (p: { status?: string; progress?: number; file?: string }) => {
-      if (p.status === 'progress' && typeof p.progress === 'number') {
-        onProgress({
-          stage: 'model',
-          message: `Downloading speech model (first use only)… ${Math.round(p.progress)}%`,
-          fraction: p.progress / 100,
-        });
-      }
-    },
-  });
+  // Cached so transcribing several files doesn't rebuild the model each time.
+  if (!cachedAsr || cachedAsr.id !== modelId) {
+    // webpackIgnore: this is a runtime CDN import, not something to bundle.
+    const mod = await import(/* webpackIgnore: true */ TRANSFORMERS_URL);
+    const pipe: AsrPipeline = await mod.pipeline('automatic-speech-recognition', modelId, {
+      progress_callback: (p: { status?: string; progress?: number; file?: string }) => {
+        if (p.status === 'progress' && typeof p.progress === 'number') {
+          onProgress({
+            stage: 'model',
+            message: `Downloading speech model (first use only)… ${Math.round(p.progress)}%`,
+            fraction: p.progress / 100,
+          });
+        }
+      },
+    });
+    cachedAsr = { id: modelId, pipe };
+  }
+  const asr = cachedAsr.pipe;
 
   onProgress({ stage: 'transcribe', message: 'Transcribing — this can take a few minutes…' });
   const out = await asr(samples, {

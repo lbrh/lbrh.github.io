@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import ToolboxShell from '@/components/toolbox/ToolboxShell';
 import {
@@ -16,17 +16,41 @@ import {
   type FinishRow,
 } from '@/lib/finishSheet';
 import {
-  clockAt,
   clockString,
   eventsToExtracted,
-  formatRecTime,
   parseClock,
   parseVoiceEvents,
   transcriptForPrompt,
   transcriptLines,
   type TranscriptWord,
 } from '@/lib/finishVoice';
+import { readMediaCreationTime, readMediaDuration } from '@/lib/mediaTime';
 import { WHISPER_MODELS, decodeToMono16k, transcribeSamples } from '@/lib/transcribe';
+
+type ClockSource = 'metadata-local' | 'metadata' | 'file-date' | 'manual' | 'unknown';
+
+/** One recording. Several are merged into a single timeline by their start clock times. */
+type Item = {
+  id: string;
+  file: File;
+  url: string;
+  isVideo: boolean;
+  duration: number;
+  clockInput: string;
+  clockSource: ClockSource;
+  /** Word times are seconds from the start of THIS file. */
+  words: TranscriptWord[] | null;
+};
+
+const CLOCK_NOTE: Record<ClockSource, string> = {
+  'metadata-local': "read from the file's local-time stamp (iPhone) — no time-zone conversion",
+  metadata: "read from the file's UTC recording-start metadata, shown in this computer's time zone",
+  'file-date': "guessed from the file's saved time minus its length — verify",
+  manual: 'entered manually',
+  unknown: 'no time found in the file — enter it',
+};
+
+let itemSeq = 0;
 
 // Same Cloudflare Worker as the Finish Sheet Reader — see cloudflare/finish-sheet-worker.js
 // (it needs the transcript mode added in this repo deployed).
@@ -43,46 +67,136 @@ function download(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function secondsOfDay(d: Date): number {
+  return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+}
+
 export default function FinishVoiceLogger() {
   const [boatFileName, setBoatFileName] = useState('');
   const [boatMap, setBoatMap] = useState<Map<string, BoatEntry> | null>(null);
   const [boatError, setBoatError] = useState('');
 
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaUrl, setMediaUrl] = useState('');
-  const [isVideo, setIsVideo] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [items, setItems] = useState<Item[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string>(WHISPER_MODELS[1].id);
-  const [clockInput, setClockInput] = useState('');
-  const [clockGuessed, setClockGuessed] = useState(false);
 
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const [words, setWords] = useState<TranscriptWord[] | null>(null);
   const [rows, setRows] = useState<FinishRow[] | null>(null);
-  /** Seconds into the recording of each row's "now", keyed by row id — lets the clock be re-applied. */
+  /** Clock time (seconds since midnight) of each row's "now", keyed by row id, for the play buttons. */
   const [recTimes, setRecTimes] = useState<Record<string, number | null>>({});
+  /** Clock settings when the rows were built, to warn if they're edited afterwards. */
+  const [extractedSig, setExtractedSig] = useState('');
 
   const mediaRef = useRef<HTMLMediaElement | null>(null);
-  const samplesRef = useRef<Float32Array | null>(null);
+  const pendingSeek = useRef<number | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
-    };
-  }, [mediaUrl]);
+  const updateItem = (id: string, patch: Partial<Item>) =>
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
 
-  const startClock = useMemo(() => parseClock(clockInput), [clockInput]);
+  const addFiles = async (files: FileList | File[]) => {
+    setError('');
+    const added: Item[] = [];
+    for (const file of Array.from(files)) {
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name);
+      const url = URL.createObjectURL(file);
+      added.push({
+        id: `rec-${++itemSeq}`,
+        file,
+        url,
+        isVideo,
+        duration: 0,
+        clockInput: '',
+        clockSource: 'unknown',
+        words: null,
+      });
+    }
+    setItems((prev) => [...prev, ...added]);
+    setActiveId((cur) => cur ?? added[0]?.id ?? null);
 
-  const seek = (t: number) => {
-    const el = mediaRef.current;
-    if (!el) return;
-    el.currentTime = Math.max(0, t);
-    void el.play().catch(() => undefined);
+    // Recording start time: container metadata first, else saved time minus length.
+    for (const it of added) {
+      const [created, duration] = await Promise.all([
+        readMediaCreationTime(it.file),
+        readMediaDuration(it.url, it.isVideo),
+      ]);
+      const dur = duration ?? 0;
+      if (created) {
+        updateItem(it.id, {
+          duration: dur,
+          clockInput: clockString(created.seconds),
+          clockSource: created.source === 'local' ? 'metadata-local' : 'metadata',
+        });
+      } else if (dur > 0) {
+        const end = new Date(it.file.lastModified);
+        updateItem(it.id, {
+          duration: dur,
+          clockInput: clockString(secondsOfDay(end) - dur),
+          clockSource: 'file-date',
+        });
+      } else {
+        updateItem(it.id, { duration: dur });
+      }
+    }
   };
 
+  const removeItem = (id: string) => {
+    setItems((prev) => {
+      const gone = prev.find((it) => it.id === id);
+      if (gone) URL.revokeObjectURL(gone.url);
+      return prev.filter((it) => it.id !== id);
+    });
+    setActiveId((cur) => (cur === id ? null : cur));
+  };
+
+  // ---- Combined timeline -------------------------------------------------
+  const clocks = items.map((it) => parseClock(it.clockInput));
+  const allClocksValid = items.length > 0 && clocks.every((c) => c !== null);
+  const clockSig = items.map((it) => `${it.id}=${it.clockInput}`).join('|');
+  const allTranscribed = items.length > 0 && items.every((it) => it.words !== null);
+
+  /** Every word on one clock-time axis (seconds since midnight), across all files. */
+  const combinedWords = useMemo(() => {
+    const all: TranscriptWord[] = [];
+    for (const it of items) {
+      const c = parseClock(it.clockInput);
+      if (c === null || !it.words) continue;
+      for (const w of it.words) all.push({ text: w.text, start: w.start + c, end: w.end + c });
+    }
+    return all.sort((a, b) => a.start - b.start);
+  }, [items]);
+
+  const lines = useMemo(() => transcriptLines(combinedWords), [combinedWords]);
+
+  // ---- Playback ----------------------------------------------------------
+  /** Plays the file covering a clock time (seconds since midnight), at the right spot within it. */
+  const seekClock = (abs: number) => {
+    let best: Item | null = null;
+    let bestStart = -Infinity;
+    for (const it of items) {
+      const c = parseClock(it.clockInput);
+      if (c === null) continue;
+      if (c <= abs && c > bestStart) {
+        best = it;
+        bestStart = c;
+      }
+    }
+    if (!best) return;
+    const local = Math.max(0, abs - bestStart);
+    if (best.id === activeId && mediaRef.current) {
+      mediaRef.current.currentTime = local;
+      void mediaRef.current.play().catch(() => undefined);
+    } else {
+      pendingSeek.current = local;
+      setActiveId(best.id);
+    }
+  };
+
+  const active = items.find((it) => it.id === activeId) ?? null;
+
+  // ---- Boat list ---------------------------------------------------------
   const handleBoatCsv = (file: File) => {
     setBoatError('');
     setBoatFileName(file.name);
@@ -119,42 +233,21 @@ export default function FinishVoiceLogger() {
     });
   };
 
-  const handleMedia = (file: File) => {
-    setError('');
-    setWords(null);
-    setRows(null);
-    setRecTimes({});
-    samplesRef.current = null;
-    setMediaFile(file);
-    setIsVideo(file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name));
-    setMediaUrl(URL.createObjectURL(file));
-    setDuration(0);
-    setClockInput('');
-    setClockGuessed(false);
-  };
-
+  // ---- Transcribe + extract ---------------------------------------------
   const runTranscribe = async () => {
-    if (!mediaFile) return;
     setError('');
     setBusy(true);
-    setWords(null);
     setRows(null);
     try {
-      setStatus('Reading the audio from the file…');
-      const { samples, duration: dur } = await decodeToMono16k(mediaFile);
-      samplesRef.current = samples;
-      setDuration(dur);
-      // Phones stamp a file's modified time when recording stops, so the
-      // start is roughly lastModified - duration. Only a guess — flagged.
-      if (!clockInput) {
-        const end = new Date(mediaFile.lastModified);
-        const endSeconds = end.getHours() * 3600 + end.getMinutes() * 60 + end.getSeconds();
-        setClockInput(clockString(endSeconds - dur));
-        setClockGuessed(true);
+      const todo = items.filter((it) => it.words === null);
+      for (let i = 0; i < todo.length; i++) {
+        const it = todo[i];
+        const tag = todo.length > 1 ? `File ${i + 1} of ${todo.length}: ` : '';
+        setStatus(`${tag}reading the audio…`);
+        const { samples, duration } = await decodeToMono16k(it.file);
+        const words = await transcribeSamples(samples, modelId, (p) => setStatus(`${tag}${p.message}`));
+        updateItem(it.id, { words, duration: it.duration || duration });
       }
-      const result = await transcribeSamples(samples, modelId, (p) => setStatus(p.message));
-      if (!result.length) throw new Error('No speech was found in that recording.');
-      setWords(result);
       setStatus('');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -165,16 +258,20 @@ export default function FinishVoiceLogger() {
   };
 
   const runExtract = async () => {
-    if (!words || !boatMap) return;
+    if (!boatMap || !allClocksValid) return;
     setError('');
     setBusy(true);
     setStatus('Claude is matching boats to "now" calls…');
     try {
+      // Model sees seconds from the earliest recording's start; convert back after.
+      const validClocks = clocks as number[];
+      const base = Math.min(...validClocks);
+      const relWords = combinedWords.map((w) => ({ text: w.text, start: w.start - base, end: w.end - base }));
       const res = await fetch(WORKER_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          transcript: transcriptForPrompt(words),
+          transcript: transcriptForPrompt(relWords),
           sails: [...boatMap.keys()],
         }),
       });
@@ -184,13 +281,14 @@ export default function FinishVoiceLogger() {
       }
       const events = parseVoiceEvents(body.events);
       if (!events.length) throw new Error('No boat finishes were found in that transcript.');
-      const built = rowsFromExtracted(eventsToExtracted(events, startClock), boatMap);
+      const built = rowsFromExtracted(eventsToExtracted(events, base), boatMap);
       const times: Record<string, number | null> = {};
       built.forEach((r, i) => {
-        times[r.id] = events[i].t;
+        times[r.id] = events[i].t === null ? null : base + events[i].t!;
       });
       setRecTimes(times);
       setRows(built);
+      setExtractedSig(clockSig);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -199,23 +297,7 @@ export default function FinishVoiceLogger() {
     }
   };
 
-  const changeClock = (value: string) => {
-    setClockInput(value);
-    setClockGuessed(false);
-    const sc = parseClock(value);
-    if (sc === null) return;
-    setRows((prev) =>
-      prev
-        ? prev.map((r) => {
-            const t = recTimes[r.id];
-            if (t === null || t === undefined) return r;
-            const c = clockAt(sc, t);
-            return { ...r, hr: c.hr, mm: c.min, ss: c.sec };
-          })
-        : prev,
-    );
-  };
-
+  // ---- Table -------------------------------------------------------------
   const updateRow = (id: string, patch: Partial<FinishRow>) => {
     setRows((prev) =>
       prev
@@ -242,31 +324,33 @@ export default function FinishVoiceLogger() {
   const duplicateSails = useMemo(() => (rows ? findDuplicateSails(rows) : new Set<string>()), [rows]);
   const invalidCount = rows ? rows.filter((r) => !rowIsValid(validateRow(r, duplicateSails))).length : 0;
   const canExport = !!rows && rows.length > 0 && invalidCount === 0;
-  const lines = useMemo(() => (words ? transcriptLines(words) : []), [words]);
 
   const exportCsv = () => {
     if (!canExport || !rows) return;
-    const safe = (mediaFile?.name ?? '').replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]+/g, '-') || 'voice-finish';
+    const first = items[0]?.file.name ?? '';
+    const safe = first.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]+/g, '-') || 'voice-finish';
     download(new Blob([rowsToCsv(rows)], { type: 'text/csv' }), `FinishTimeImport_${safe}.csv`);
   };
 
   const invalidStyle = { borderColor: 'var(--tb-danger)', background: '#fef3f2' };
+  const untranscribed = items.filter((it) => it.words === null).length;
 
   return (
     <ToolboxShell
       eyebrow="Tool 11"
       title="Voice Finish Logger"
-      description="Transcribe a recording of boats being called across the finish line and turn it into a TopYacht FinishTime import CSV."
+      description="Transcribe recordings of boats being called across the finish line and turn them into a TopYacht FinishTime import CSV."
     >
       <h1 className="tb-display tb-anim-rise text-[26px] leading-tight">Voice Finish Logger</h1>
       <p
         className="tb-anim-rise mt-2 max-w-2xl text-[14px] leading-relaxed text-[var(--tb-text-muted)]"
         style={{ animationDelay: '0.04s' }}
       >
-        Record yourself calling each boat and &ldquo;now&rdquo; as it finishes. The recording is
-        transcribed on your own device (nothing is uploaded), then only the text goes to Claude, which
-        pairs each &ldquo;now&rdquo; with the boat it refers to — repeats and double-loads included —
-        and stamps it with the time. Check the table, then export the CSV.
+        Record yourself calling each boat and &ldquo;now&rdquo; as it finishes. Add one or more
+        recordings — each is transcribed on your own device (nothing is uploaded) and placed on a
+        single timeline using the start time stored in the file. Only the text goes to Claude, which
+        pairs each &ldquo;now&rdquo; with its boat — repeats, double-loads and &ldquo;scratch
+        that&rdquo; included. Check the table, then export the CSV.
       </p>
 
       <div className="tb-anim-rise tb-card mt-8 p-6" style={{ animationDelay: '0.08s' }}>
@@ -307,30 +391,81 @@ export default function FinishVoiceLogger() {
           </div>
 
           <div>
-            <span className="tb-eyebrow">2. Audio or video recording</span>
+            <span className="tb-eyebrow">2. Audio / video recordings (one or more)</span>
             <label
               className="mt-2 flex cursor-pointer flex-col items-center justify-center border-4 border-dashed border-[var(--tb-border)] p-6 text-center transition hover:border-[var(--tb-accent)]"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                const f = e.dataTransfer.files?.[0];
-                if (f) handleMedia(f);
+                if (e.dataTransfer.files?.length) void addFiles(e.dataTransfer.files);
               }}
             >
-              <p className="text-[var(--tb-text-muted)]">Drop an mp3 / m4a / wav / mp4 / mov here, or click to select</p>
-              {mediaFile && <p className="tb-mono mt-2 text-sm font-medium text-[var(--tb-accent)]">{mediaFile.name}</p>}
+              <p className="text-[var(--tb-text-muted)]">
+                Drop mp3 / m4a / wav / mp4 / mov files here, or click to select — you can add more later
+              </p>
               <input
                 type="file"
+                multiple
                 accept="audio/*,video/*,.m4a,.mp3,.wav,.mp4,.mov,.m4v,.webm,.aac"
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleMedia(f);
+                  if (e.target.files?.length) void addFiles(e.target.files);
+                  e.target.value = '';
                 }}
               />
             </label>
           </div>
         </div>
+
+        {items.length > 0 && (
+          <div className="mt-6">
+            <span className="tb-eyebrow">Recordings</span>
+            <div className="mt-2 space-y-3">
+              {items.map((it, i) => {
+                const c = clocks[i];
+                return (
+                  <div key={it.id} className="grid items-start gap-3 border border-[var(--tb-border)] p-3 sm:grid-cols-[1fr_auto]">
+                    <div>
+                      <p className="tb-mono text-sm font-medium">{it.file.name}</p>
+                      <p className="mt-0.5 text-[12px] text-[var(--tb-text-muted)]">
+                        {it.duration > 0 ? `${Math.round(it.duration)} s · ` : ''}
+                        {it.words ? `${it.words.length} words transcribed` : 'not transcribed yet'}
+                      </p>
+                      <label className="mt-2 block text-sm">
+                        <span className="tb-eyebrow">Recording start (HH:MM:SS)</span>
+                        <input
+                          value={it.clockInput}
+                          onChange={(e) => updateItem(it.id, { clockInput: e.target.value, clockSource: 'manual' })}
+                          placeholder="e.g. 15:42:10"
+                          className="tb-input tb-mono mt-1 w-40 px-3 py-1.5 text-sm"
+                          style={c === null ? invalidStyle : undefined}
+                        />
+                        <span
+                          className="ml-3 text-[12px]"
+                          style={{ color: it.clockSource === 'metadata' || it.clockSource === 'metadata-local' ?'var(--tb-text-muted)' : 'var(--tb-warn)' }}
+                        >
+                          {CLOCK_NOTE[it.clockSource]}
+                        </span>
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setActiveId(it.id)} className="tb-btn-ghost px-3 py-1.5 text-xs">
+                        Play
+                      </button>
+                      <button
+                        onClick={() => removeItem(it.id)}
+                        className="tb-btn-ghost px-3 py-1.5 text-xs"
+                        aria-label={`Remove ${it.file.name}`}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
@@ -348,38 +483,25 @@ export default function FinishVoiceLogger() {
               ))}
             </select>
           </label>
-          <label className="block text-sm">
-            <span className="tb-eyebrow">Clock time at 0:00 of the recording (HH:MM:SS)</span>
-            <input
-              value={clockInput}
-              onChange={(e) => changeClock(e.target.value)}
-              placeholder="e.g. 15:42:10"
-              className="tb-input mt-1 w-full px-3 py-2 text-sm tb-mono"
-              style={clockInput && startClock === null ? invalidStyle : undefined}
-            />
-            <span className="mt-1 block text-[12px] text-[var(--tb-text-muted)]">
-              {clockGuessed
-                ? 'Guessed from the file’s saved time minus its length — check it against a known finish.'
-                : 'The wall-clock time when the recording began. Each finish time is this plus its position in the recording.'}
-            </span>
-          </label>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-3">
-          <button onClick={runTranscribe} disabled={!mediaFile || busy} className="tb-btn px-4 py-2 text-sm">
-            Transcribe recording
+          <button onClick={runTranscribe} disabled={!untranscribed || busy} className="tb-btn px-4 py-2 text-sm">
+            {untranscribed && untranscribed < items.length
+              ? `Transcribe ${untranscribed} new recording${untranscribed === 1 ? '' : 's'}`
+              : 'Transcribe recordings'}
           </button>
           <button
             onClick={runExtract}
-            disabled={!words || !boatMap || startClock === null || busy}
+            disabled={!allTranscribed || !boatMap || !allClocksValid || busy}
             className="tb-btn px-4 py-2 text-sm"
           >
             Read finishes with Claude
           </button>
         </div>
-        {words && (!boatMap || startClock === null) && (
+        {allTranscribed && (!boatMap || !allClocksValid) && (
           <p className="mt-2 text-[12.5px] text-[var(--tb-text-muted)]">
-            {!boatMap ? 'Load the boat list' : 'Enter a valid start clock time'} to continue.
+            {!boatMap ? 'Load the boat list' : 'Enter a valid start time for every recording'} to continue.
           </p>
         )}
         {status && <p className="mt-3 text-sm text-[var(--tb-text-muted)]">{status}</p>}
@@ -388,52 +510,69 @@ export default function FinishVoiceLogger() {
             {error}
           </p>
         )}
+        {rows && extractedSig !== clockSig && (
+          <p className="mt-4 rounded-[3px] border border-[var(--tb-warn)]/40 bg-[#fffaeb] p-3 text-sm text-[var(--tb-warn)]">
+            Recordings or start times changed since the table was built — press &ldquo;Read finishes with
+            Claude&rdquo; again to apply them.
+          </p>
+        )}
       </div>
 
-      {mediaUrl && (
+      {active && (
         <div className="tb-card mt-8 p-6">
-          <h2 className="tb-display text-[17px]">Recording</h2>
-          {isVideo ? (
+          <h2 className="tb-display text-[17px]">Playback — {active.file.name}</h2>
+          {active.isVideo ? (
             <video
+              key={active.id}
               ref={(el) => {
                 mediaRef.current = el;
               }}
-              src={mediaUrl}
+              src={active.url}
               controls
               className="mt-3 max-h-64 w-full"
-              onLoadedMetadata={(e) => setDuration((d) => d || e.currentTarget.duration)}
+              onLoadedMetadata={(e) => {
+                if (pendingSeek.current !== null) {
+                  e.currentTarget.currentTime = pendingSeek.current;
+                  pendingSeek.current = null;
+                  void e.currentTarget.play().catch(() => undefined);
+                }
+              }}
             />
           ) : (
             <audio
+              key={active.id}
               ref={(el) => {
                 mediaRef.current = el;
               }}
-              src={mediaUrl}
+              src={active.url}
               controls
               className="mt-3 w-full"
-              onLoadedMetadata={(e) => setDuration((d) => d || e.currentTarget.duration)}
+              onLoadedMetadata={(e) => {
+                if (pendingSeek.current !== null) {
+                  e.currentTarget.currentTime = pendingSeek.current;
+                  pendingSeek.current = null;
+                  void e.currentTarget.play().catch(() => undefined);
+                }
+              }}
             />
-          )}
-          {duration > 0 && (
-            <p className="tb-mono mt-1 text-xs text-[var(--tb-text-muted)]">Length {formatRecTime(duration)}</p>
           )}
         </div>
       )}
 
-      {words && (
+      {combinedWords.length > 0 && (
         <div className="tb-card mt-8 p-6">
           <h2 className="tb-display text-[17px]">Transcript</h2>
           <p className="mt-1 text-[12.5px] text-[var(--tb-text-muted)]">
-            Click a timestamp to play from there.
+            Combined across all recordings, shown in clock time. Click a time to play from there.
           </p>
           <div className="mt-3 max-h-72 overflow-y-auto border border-[var(--tb-border)] p-3 text-[13px] leading-relaxed">
             {lines.map((l, i) => (
               <p key={i}>
                 <button
-                  onClick={() => seek(l.start)}
+                  onClick={() => seekClock(l.start)}
                   className="tb-mono mr-2 text-[11.5px] text-[var(--tb-accent)] hover:underline"
                 >
-                  {formatRecTime(l.start)}
+                  {clockString(l.start)}
                 </button>
                 {l.text}
               </p>
@@ -469,7 +608,7 @@ export default function FinishVoiceLogger() {
                 <th>HR</th>
                 <th>MN</th>
                 <th>SC</th>
-                <th>Heard at</th>
+                <th>Heard</th>
                 <th>Note</th>
                 <th></th>
               </tr>
@@ -532,11 +671,11 @@ export default function FinishVoiceLogger() {
                     <td className="tb-mono text-xs">
                       {typeof t === 'number' ? (
                         <button
-                          onClick={() => seek(t - 5)}
+                          onClick={() => seekClock(t - 5)}
                           className="text-[var(--tb-accent)] hover:underline"
                           title="Play from 5 seconds before this “now”"
                         >
-                          ▶ {formatRecTime(t)}
+                          ▶ play
                         </button>
                       ) : (
                         '—'
