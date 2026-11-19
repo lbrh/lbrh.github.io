@@ -28,12 +28,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // Firing every station at once trips Open-Meteo's rate limit (HTTP 429) or
 // drops connections, so a request is retried with a growing delay before the
 // caller sees a failure. Callers keep showing "Loading" until this settles.
-async function fetchWithRetry(url: string): Promise<Response> {
+async function fetchWithRetry(url: string, maxAttempts = MAX_ATTEMPTS, timeoutMs = 15_000): Promise<Response> {
   let lastError: unknown = new Error('Request failed');
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) await sleep(800 * 2 ** (attempt - 1) + Math.random() * 400);
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
       if (res.ok) return res;
       lastError = new Error(`HTTP ${res.status}`);
       // Client errors other than rate limiting will not succeed on retry.
@@ -62,7 +62,7 @@ export async function fetchStationWind(station: WindStation): Promise<StationDat
     `https://marine-api.open-meteo.com/v1/marine?latitude=${station.lat}&longitude=${station.lng}` +
     `&hourly=wave_height&timezone=Australia%2FSydney&forecast_days=2`;
 
-  const [fRes, mRes] = await Promise.all([fetchWithRetry(forecastUrl), fetchWithRetry(marineUrl).catch(() => null)]);
+  const [fRes, mRes] = await Promise.all([fetchWithRetry(forecastUrl), fetchWithRetry(marineUrl, 1, 4_000).catch(() => null)]);
   const weather = await fRes.json();
 
   const time: string[] = weather.minutely_15.time;
