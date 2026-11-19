@@ -18,6 +18,7 @@ import {
 import {
   clockString,
   eventsToExtracted,
+  formatRecTime,
   parseClock,
   parseVoiceEvents,
   transcriptForPrompt,
@@ -27,7 +28,71 @@ import {
 import { readMediaCreationTime, readMediaDuration } from '@/lib/mediaTime';
 import { WHISPER_MODELS, decodeToMono16k, transcribeSamples } from '@/lib/transcribe';
 
-type ClockSource = 'metadata-local' | 'metadata' | 'file-date' | 'manual' | 'unknown';
+type ClockSource = 'metadata-local' | 'metadata' | 'file-date' | 'manual' | 'calibrated' | 'unknown';
+
+/**
+ * For recordings whose time was lost (e.g. sent via WhatsApp): pick a moment
+ * in the transcript whose real clock time is known (a finish on the paper
+ * sheet or in TopYacht), type that time, and the recording's start is
+ * worked out from it.
+ */
+function CalibratePanel(props: {
+  words: TranscriptWord[];
+  line: number;
+  time: string;
+  onLine: (i: number) => void;
+  onTime: (t: string) => void;
+  onPlay: (localSeconds: number) => void;
+  onApply: (startClockSeconds: number) => void;
+}) {
+  const lines = useMemo(() => transcriptLines(props.words), [props.words]);
+  const chosen = lines[props.line];
+  const real = parseClock(props.time);
+  return (
+    <div className="mt-2 border border-[var(--tb-border)] bg-[var(--tb-surface)] p-3">
+      <label className="block text-sm">
+        <span className="tb-eyebrow">1. Moment in this recording</span>
+        <select
+          value={props.line}
+          onChange={(e) => props.onLine(Number(e.target.value))}
+          className="tb-input mt-1 w-full px-2 py-1.5 text-sm"
+        >
+          {lines.map((l, i) => (
+            <option key={i} value={i}>
+              {formatRecTime(l.start)} — {l.text.slice(0, 60)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        onClick={() => chosen && props.onPlay(Math.max(0, chosen.start - 2))}
+        className="mt-1 text-[12px] text-[var(--tb-accent)] hover:underline"
+      >
+        ▶ Play this moment
+      </button>
+      <label className="mt-2 block text-sm">
+        <span className="tb-eyebrow">2. What the clock really said then (HH:MM:SS)</span>
+        <input
+          value={props.time}
+          onChange={(e) => props.onTime(e.target.value)}
+          placeholder="e.g. 15:47:32"
+          className="tb-input tb-mono mt-1 w-40 px-3 py-1.5 text-sm"
+        />
+      </label>
+      <p className="mt-1 text-[12px] text-[var(--tb-text-muted)]">
+        Use a boat&apos;s &ldquo;now&rdquo; whose real finish time you know. The time is taken at the start
+        of the line you picked.
+      </p>
+      <button
+        disabled={!chosen || real === null}
+        onClick={() => chosen && real !== null && props.onApply(real - chosen.start)}
+        className="tb-btn mt-2 px-3 py-1.5 text-xs"
+      >
+        Set recording start
+      </button>
+    </div>
+  );
+}
 
 /** One recording. Several are merged into a single timeline by their start clock times. */
 type Item = {
@@ -47,6 +112,7 @@ const CLOCK_NOTE: Record<ClockSource, string> = {
   metadata: "read from the file's UTC recording-start metadata, shown in this computer's time zone",
   'file-date': "guessed from the file's saved time minus its length — verify",
   manual: 'entered manually',
+  calibrated: 'set from a known moment in the recording',
   unknown: 'no time found in the file — enter it',
 };
 
@@ -78,6 +144,7 @@ export default function FinishVoiceLogger() {
 
   const [items, setItems] = useState<Item[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [cal, setCal] = useState<{ id: string; line: number; time: string } | null>(null);
   const [modelId, setModelId] = useState<string>(WHISPER_MODELS[1].id);
 
   const [status, setStatus] = useState('');
@@ -191,6 +258,17 @@ export default function FinishVoiceLogger() {
     } else {
       pendingSeek.current = local;
       setActiveId(best.id);
+    }
+  };
+
+  /** Plays one recording from a position within it (independent of clock times). */
+  const playLocal = (id: string, local: number) => {
+    if (id === activeId && mediaRef.current) {
+      mediaRef.current.currentTime = local;
+      void mediaRef.current.play().catch(() => undefined);
+    } else {
+      pendingSeek.current = local;
+      setActiveId(id);
     }
   };
 
@@ -442,11 +520,38 @@ export default function FinishVoiceLogger() {
                         />
                         <span
                           className="ml-3 text-[12px]"
-                          style={{ color: it.clockSource === 'metadata' || it.clockSource === 'metadata-local' ?'var(--tb-text-muted)' : 'var(--tb-warn)' }}
+                          style={{ color: it.clockSource === 'metadata' || it.clockSource === 'metadata-local' || it.clockSource === 'calibrated' ? 'var(--tb-text-muted)' : 'var(--tb-warn)' }}
                         >
                           {CLOCK_NOTE[it.clockSource]}
                         </span>
                       </label>
+
+                      {it.words && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() =>
+                              setCal((cur) => (cur?.id === it.id ? null : { id: it.id, line: 0, time: '' }))
+                            }
+                            className="text-[12px] text-[var(--tb-accent)] hover:underline"
+                          >
+                            {cal?.id === it.id ? 'Close calibration' : 'Set start from a known moment…'}
+                          </button>
+                          {cal?.id === it.id && (
+                            <CalibratePanel
+                              words={it.words}
+                              line={cal.line}
+                              time={cal.time}
+                              onLine={(line) => setCal({ ...cal, line })}
+                              onTime={(time) => setCal({ ...cal, time })}
+                              onPlay={(local) => playLocal(it.id, local)}
+                              onApply={(start) => {
+                                updateItem(it.id, { clockInput: clockString(start), clockSource: 'calibrated' });
+                                setCal(null);
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setActiveId(it.id)} className="tb-btn-ghost px-3 py-1.5 text-xs">
