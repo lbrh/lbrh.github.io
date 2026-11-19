@@ -355,7 +355,8 @@ export default function FinishVoiceLogger() {
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body || body.error) {
-        throw new Error(body?.error || `Worker responded with status ${res.status}`);
+        const raw = typeof body?.raw === 'string' ? ` Claude replied: "${body.raw.slice(0, 300)}"` : '';
+        throw new Error((body?.error || `Worker responded with status ${res.status}`) + raw);
       }
       const events = parseVoiceEvents(body.events);
       if (!events.length) throw new Error('No boat finishes were found in that transcript.');

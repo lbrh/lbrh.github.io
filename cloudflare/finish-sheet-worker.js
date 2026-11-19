@@ -112,9 +112,12 @@ function jsonResponse(body, status, headers) {
 }
 
 function extractJsonArray(text) {
-  let cleaned = text.trim().replace(/^`+|`+$/g, '').trim();
-  if (cleaned.toLowerCase().startsWith('json')) cleaned = cleaned.slice(4).trim();
-  const parsed = JSON.parse(cleaned);
+  // The model sometimes wraps the array in fences or adds a sentence before/after it,
+  // so take everything from the first "[" to the last "]".
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end <= start) throw new Error('No JSON array found.');
+  const parsed = JSON.parse(text.slice(start, end + 1));
   if (!Array.isArray(parsed)) throw new Error('Model response was not a JSON array.');
   return parsed;
 }
