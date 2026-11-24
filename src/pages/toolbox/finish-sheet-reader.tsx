@@ -159,7 +159,8 @@ export default function FinishSheetReader() {
       });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body || body.error) {
-        throw new Error(body?.error || `Worker responded with status ${res.status}`);
+        const raw = typeof body?.raw === 'string' && body.raw ? `\n\nClaude replied: "${body.raw.slice(0, 600)}"` : '';
+        throw new Error((body?.error || `Worker responded with status ${res.status}`) + raw);
       }
 
       const extracted = parseExtractedRows(body.rows);
@@ -349,7 +350,7 @@ export default function FinishSheetReader() {
         </div>
 
         {error && (
-          <p className="mt-4 rounded-[3px] border border-[var(--tb-danger)]/40 bg-[#fef3f2] p-3 text-sm text-[var(--tb-danger)]">
+          <p className="mt-4 rounded-[3px] border border-[var(--tb-danger)]/40 bg-[#fef3f2] p-3 text-sm whitespace-pre-wrap text-[var(--tb-danger)]">
             {error}
           </p>
         )}

@@ -74,10 +74,34 @@ How the officer works: they "load" a boat by calling its sail number (a letter o
 - A boat that was loaded but never got a matching "now" is still included, with "t": null and note "no now heard". Extra "now" calls with no boat waiting are ignored.
 - Return boats in the order they finished.
 
-Return ONLY a raw JSON array, no markdown fences, no commentary. Each element: {"sailNum": "R815", "t": 128.4, "note": ""}. Sail numbers have no spaces and are uppercase. Example:
-[{"sailNum": "R815", "t": 128.4, "note": ""}, {"sailNum": "S47", "t": 141.0, "note": ""}]`;
+Report your answer by calling the record_finishes tool. Use its "working" field for brief queue notes if you need them, then list the finished boats in "events" (sail numbers uppercase, no spaces).`;
 
-async function callClaude(env, content, maxTokens) {
+// Forced tool call so the answer always comes back as structured JSON, never prose.
+const VOICE_TOOL = {
+  name: 'record_finishes',
+  description: 'Record the boats that finished, in finishing order.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      working: { type: 'string', description: 'Brief queue notes, optional.' },
+      events: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            sailNum: { type: 'string' },
+            t: { type: ['number', 'null'], description: 'Seconds at the finishing "now", or null if none heard.' },
+            note: { type: 'string' },
+          },
+          required: ['sailNum', 't', 'note'],
+        },
+      },
+    },
+    required: ['events'],
+  },
+};
+
+async function callClaude(env, content, maxTokens, extra = {}) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -89,6 +113,7 @@ async function callClaude(env, content, maxTokens) {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       messages: [{ role: 'user', content }],
+      ...extra,
     }),
   });
   return res;
@@ -216,7 +241,10 @@ export default {
 
       let res;
       try {
-        res = await callClaude(env, text, 8000);
+        res = await callClaude(env, text, 16000, {
+          tools: [VOICE_TOOL],
+          tool_choice: { type: 'tool', name: 'record_finishes' },
+        });
       } catch (e) {
         return jsonResponse({ error: `Could not reach Anthropic: ${e.message}` }, 502, headers);
       }
@@ -225,18 +253,19 @@ export default {
         return jsonResponse({ error: `Anthropic API error (${res.status}): ${detail}` }, 502, headers);
       }
       const data = await res.json();
-      const out = (data.content || [])
-        .filter((b) => b.type === 'text')
-        .map((b) => b.text)
-        .join('')
-        .trim();
-      let events;
-      try {
-        events = extractJsonArray(out);
-      } catch {
-        return jsonResponse({ error: 'Could not parse a JSON array from the model response.', raw: out }, 502, headers);
+      const toolUse = (data.content || []).find((b) => b.type === 'tool_use');
+      if (!toolUse || !Array.isArray(toolUse.input?.events)) {
+        const raw = (data.content || []).map((b) => b.text || '').join('').trim();
+        return jsonResponse(
+          {
+            error: `Claude did not return a finishes list (stop reason: ${data.stop_reason || 'unknown'}).`,
+            raw,
+          },
+          502,
+          headers,
+        );
       }
-      return jsonResponse({ events }, 200, headers);
+      return jsonResponse({ events: toolUse.input.events }, 200, headers);
     }
 
     const imageBase64 = typeof payload?.imageBase64 === 'string' ? payload.imageBase64 : '';
@@ -295,7 +324,7 @@ export default {
     try {
       rows = extractJsonArray(text);
     } catch {
-      return jsonResponse({ error: 'Could not parse a JSON array from the model response.', raw: text }, 502, headers);
+      return jsonResponse({ error: 'The model did not return finish data. This may not be a finish sheet photo, or it could not be read.', raw: text }, 502, headers);
     }
 
     return jsonResponse({ rows }, 200, headers);
